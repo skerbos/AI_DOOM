@@ -116,7 +116,7 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
         for _ in trange(steps_per_epoch, leave=False):
             state = preprocess(game.get_state().screen_buffer)
             action = agent.get_action(state)
-            reward = game.make_action(actions[action], frame_repeat) + game.get_game_variable(vzd.GameVariable.KILLCOUNT)
+            reward = game.make_action(actions[action], frame_repeat) #+ game.get_game_variable(vzd.GameVariable.KILLCOUNT)
             done = game.is_episode_finished()
 
             if not done:
