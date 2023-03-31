@@ -1,4 +1,5 @@
 import random
+import os
 from collections import deque
 
 import numpy as np
@@ -77,11 +78,13 @@ class DQNAgent:
         discount_factor,
         lr,
         load_model,
+        load_savefile = None,
         epsilon=1,
         epsilon_decay=0.9996,
         epsilon_min=0.1,
-        model_savefile = "./model-doom.pth"
+        ckpt_dir = "./ckpt/"
     ):
+        self.name = "DQNagent"
         self.action_size = action_size
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
@@ -91,11 +94,12 @@ class DQNAgent:
         self.lr = lr
         self.memory = deque(maxlen=memory_size)
         self.criterion = nn.MSELoss()
+        self.ckpt_dir = ckpt_dir
 
         if load_model:
-            print("Loading model from: ", model_savefile)
-            self.q_net = torch.load(model_savefile).to(DEVICE)
-            self.target_net = torch.load(model_savefile).to(DEVICE)
+            print("Loading model from: ", load_savefile)
+            self.q_net = torch.load(load_savefile).to(DEVICE)
+            self.target_net = torch.load(load_savefile).to(DEVICE)
             self.epsilon = self.epsilon_min
 
         else:
@@ -160,3 +164,8 @@ class DQNAgent:
             self.epsilon *= self.epsilon_decay
         else:
             self.epsilon = self.epsilon_min
+
+    def save_model(self, epochs):
+        model_savefile = os.path.join(self.ckpt_dir,f"model-doom-{self.name}-{self.lr}-epoch-{epochs}.pth")
+        print("Saving the network weights to:", model_savefile)
+        torch.save(self.q_net, model_savefile)

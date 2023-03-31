@@ -5,15 +5,11 @@
 
 import itertools as it
 import os
-import random
-from collections import deque
 from time import sleep, time
 
 import numpy as np
 import skimage.transform
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import vizdoom as vzd
 from tqdm import trange
 
@@ -23,7 +19,7 @@ from Agents.DQN import DQNAgent
 # Q-learning settings
 learning_rate = 0.00025
 discount_factor = 0.99
-train_epochs = 5
+train_epochs = 1
 learning_steps_per_epoch = 2000
 replay_memory_size = 10000
 
@@ -38,7 +34,6 @@ frame_repeat = 12
 resolution = (30, 45)
 episodes_to_watch = 10
 
-model_savefile = "./model-doom.pth"
 save_model = True
 load_model = False
 skip_learning = False
@@ -153,8 +148,7 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
 
         test(game, agent)
         if save_model:
-            print("Saving the network weights to:", model_savefile)
-            torch.save(agent.q_net, model_savefile)
+            agent.save_model(num_epochs)
         print("Total elapsed time: %.2f minutes" % ((time() - start_time) / 60.0))
 
     game.close()
@@ -165,6 +159,7 @@ if __name__ == "__main__":
     game = create_simple_game()
     n = game.get_available_buttons_size()
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
+    load_savefile = "./ckpt/model-doom-DQN.pth"
 
     # Initialize our agent with the set parameters
     agent = DQNAgent(
@@ -173,7 +168,7 @@ if __name__ == "__main__":
         batch_size=batch_size,
         memory_size=replay_memory_size,
         discount_factor=discount_factor,
-        load_model=load_model,
+        load_model=load_model
     )
 
     # Run the training for the set number of epochs

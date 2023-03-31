@@ -5,15 +5,11 @@
 
 import itertools as it
 import os
-import random
-from collections import deque
 from time import sleep, time
 
 import numpy as np
 import skimage.transform
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import vizdoom as vzd
 from tqdm import trange
 
@@ -38,7 +34,6 @@ frame_repeat = 12
 resolution = (30, 45)
 episodes_to_watch = 10
 
-model_savefile = "./model-doom.pth"
 save_model = True
 load_model = True
 skip_learning = False
@@ -106,9 +101,8 @@ if __name__ == "__main__":
     game = create_simple_game()
     n = game.get_available_buttons_size()
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
-    print(n)
-    print(actions)
-    input(":")
+    load_ckpt_path = "./ckpt/model-doom-DQNagent-0.00025-epoch-1.pth"
+
     # Initialize our agent with the set parameters
     agent = DQNAgent(
         len(actions),
@@ -117,10 +111,10 @@ if __name__ == "__main__":
         memory_size=replay_memory_size,
         discount_factor=discount_factor,
         load_model=load_model,
+        load_savefile=load_ckpt_path
     )
 
     test(game, agent)
-
     print("======================================")
     print("Testing finished. It's time to watch!")
 
