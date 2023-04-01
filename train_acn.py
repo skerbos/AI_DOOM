@@ -11,7 +11,7 @@ from tqdm import trange
 from Agents.ACN import Actor_Critic_Agent, preprocess
 
 # Configuration file path
-config_file_path = os.path.join(vzd.scenarios_path, "simpler_basic.cfg")
+config_file_path = os.path.join(vzd.scenarios_path, "Single_player.cfg")
 # config_file_path = os.path.join(vzd.scenarios_path, "rocket_basic.cfg")
 # config_file_path = os.path.join(vzd.scenarios_path, "basic.cfg")
 
@@ -29,6 +29,7 @@ def create_simple_game():
     game = vzd.DoomGame()
     game.load_config(config_file_path)
     game.set_window_visible(False)
+    game.set_doom_map("E1M1")
     game.set_mode(vzd.Mode.PLAYER)
     game.set_screen_format(vzd.ScreenFormat.GRAY8)
     game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
@@ -60,20 +61,6 @@ def test(agent):
         "max: %.1f" % test_scores.max(),
     )
 
-
-def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
-    """
-    Run num epochs of training episodes.
-    Skip frame_repeat number of frames after each action.
-    """
-    test(game, agent)
-    if save_model:
-        agent.save_model(num_epochs)
-    print("Total elapsed time: %.2f minutes" % ((time() - start_time) / 60.0))
-
-    game.close()
-    return agent, game
-
 if __name__ == "__main__":
     # Initialize game and actions
     start_time = time()
@@ -90,7 +77,7 @@ if __name__ == "__main__":
 
     # Run the training for the set number of epochs
     if not skip_learning:
-        max_timesteps = 1000
+        max_timesteps = 10000
         agent.learn(max_timesteps)
         test(agent)
         if save_model:

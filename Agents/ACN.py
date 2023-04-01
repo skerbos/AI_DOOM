@@ -33,9 +33,13 @@ class Actor(nn.Module):
             self.initial_layer,
             self.model,
             nn.ReLU(),
-            nn.Linear(in_features=1000, out_features=256),
+            nn.Linear(in_features=1000, out_features=512),
             nn.ReLU(),
-            nn.Linear(256, out_features=available_actions_count),
+            nn.Linear(in_features=512, out_features=256),
+            nn.ReLU(),
+            nn.Linear(in_features=256, out_features=128),
+            nn.ReLU(),
+            nn.Linear(128, out_features=available_actions_count),
             # nn.Softmax(),
             )
     def forward(self, x):
@@ -56,9 +60,9 @@ class Critic(nn.Module):
             nn.ReLU(),
             nn.Linear(in_features=512, out_features=256),
             nn.ReLU(),
-            # nn.Linear(in_features=256, out_features=128),
-            # nn.ReLU(),
-            nn.Linear(256, out_features=1),
+            nn.Linear(in_features=256, out_features=128),
+            nn.ReLU(),
+            nn.Linear(128, out_features=1),
             # nn.Tanh(),
             )
     def forward(self, x):
@@ -80,14 +84,19 @@ def unison_shuffled_copies(a, b, c, d):
     return a[p], b[p], c[p], d[p]
     
 class Actor_Critic_Agent():
-    def __init__(self, actions, game) -> None:
+    def __init__(self, actions, game, load_model = "") -> None:
         self.init_hyperparameters()
         self.game = game
         self.actions = actions
         self.action_size = len(actions)
-
         self.actor = Actor(self.action_size).to(DEVICE)
         self.critic = Critic().to(DEVICE)
+
+        if load_model != "":
+            checkpoint = torch.load(load_model)
+            self.actor.load_state_dict(checkpoint['Actor_state_dict'])
+            self.critic.load_state_dict(checkpoint['Critic_state_dict'])
+            
 
         self.actor_optim = optim.Adam(self.actor.parameters(), lr = self.actor_lr)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr = self.critic_lr)
@@ -106,15 +115,27 @@ class Actor_Critic_Agent():
             # Calculate how many timesteps we collected this batch   
             curr_t += np.sum(batch_lens)
 
+            print(batch_obs.shape)
+            print(batch_acts.shape)
+            print(batch_rtgs.shape)
+
+            input(":")
+
             # Calculate V_{phi, k}
-            V, _ = self.evaluate(batch_obs, batch_acts)
+            V = torch.zeros((batch_obs.shape[0]))
+            for i in range((batch_obs.shape[0]//300+1)):
+                start = i*300
+                end = min(start+300, batch_obs.shape[0])
+                V[start:end], _ = self.evaluate(batch_obs[start:end,:,:,:], batch_acts[start:end,:,:])
             # ALG STEP 5
             # Calculate advantage
             A_k = batch_rtgs - V.detach().cpu()
 
             # Normalize advantages
             A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
+            print("hello")
             for _ in range(self.n_updates_per_iteration):
+
                 # Calculate pi_theta(a_t | s_t)
                 V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
                 # Calculate ratios
@@ -141,6 +162,7 @@ class Actor_Critic_Agent():
                 self.critic_optim.step()
 
         pass
+    
     def rollout(self):
         # Batch Data
         batch_obs = []
@@ -212,12 +234,12 @@ class Actor_Critic_Agent():
         return action.detach().numpy(), log_prob.detach(), curr_action
     
     def init_hyperparameters(self):
-        self.name = "ACNagent"
+        self.name = "ACNagent-larger"
         self.gamma = 0.95
         self.actor_lr = 0.00005
         self.critic_lr = 0.01
-        self.timesteps_per_batch = 300 #2000 
-        self.max_timesteps_per_episode = 300
+        self.timesteps_per_batch = 2100 #2000 
+        self.max_timesteps_per_episode = 2000
         self.frame_repeat = 12
         self.n_updates_per_iteration = 5
         self.clip = 0.2 # As recommended by the paper
