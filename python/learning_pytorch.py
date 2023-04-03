@@ -16,6 +16,8 @@ import torch.nn as nn
 import torch.optim as optim
 import vizdoom as vzd
 from tqdm import trange
+from torchvision.models import resnet50, ResNet50_Weights
+
 
 
 # Q-learning settings
@@ -212,6 +214,9 @@ class DuelQNet(nn.Module):
         )
 
         return x
+# Initialize model
+weights = ResNet50_Weights.DEFAULT
+model = resnet50(weights=weights)
 
 
 class DQNAgent:
@@ -236,7 +241,7 @@ class DQNAgent:
         self.lr = lr
         self.memory = deque(maxlen=memory_size)
         self.criterion = nn.MSELoss()
-
+        
         if load_model:
             print("Loading model from: ", model_savefile)
             self.q_net = torch.load(model_savefile)
