@@ -12,6 +12,8 @@ from Agents.ACN import Actor_Critic_Agent, preprocess
 
 # Configuration file path
 config_file_path = os.path.join(vzd.scenarios_path, "Single_player.cfg")
+# config_file_path = os.path.join(vzd.scenarios_path, "simpler_basic.cfg")
+
 # config_file_path = os.path.join(vzd.scenarios_path, "rocket_basic.cfg")
 # config_file_path = os.path.join(vzd.scenarios_path, "basic.cfg")
 
@@ -29,7 +31,7 @@ def create_simple_game():
     game = vzd.DoomGame()
     game.load_config(config_file_path)
     game.set_window_visible(False)
-    game.set_doom_map("E1M1")
+    game.set_doom_map("E1M2")
     game.set_mode(vzd.Mode.PLAYER)
     game.set_screen_format(vzd.ScreenFormat.GRAY8)
     game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
@@ -47,8 +49,8 @@ def test(agent):
         agent.game.new_episode()
         while not agent.game.is_episode_finished():
             state = preprocess(agent.game.get_state().screen_buffer, agent.resolution)
-            _,_,best_action_index = agent.get_action(state)
-            agent.game.make_action(actions[best_action_index], agent.frame_repeat)
+            best_action,_ = agent.get_action(state)
+            agent.game.make_action(best_action, agent.frame_repeat)
         r = agent.game.get_total_reward()
         test_scores.append(r)
 
@@ -66,19 +68,24 @@ if __name__ == "__main__":
     start_time = time()
     game = create_simple_game()
     n = game.get_available_buttons_size()
+    # print(n)
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
+    # print(actions[0])
+    # input(":")
     # load_savefile = "./ckpt/model-doom-DQN.pth"
     save_model = True
     skip_learning = False
-    episodes_to_watch = 10
+    episodes_to_watch = 3
 
     # Initialize our agent with the set parameters
-    agent = Actor_Critic_Agent(actions, game)
+    agent = Actor_Critic_Agent(action_size= n, game = game)
 
     # Run the training for the set number of epochs
     if not skip_learning:
-        max_timesteps = 10000
+        max_timesteps = 300000
         agent.learn(max_timesteps)
+        agent.critic.eval()
+        agent.actor.eval()
         test(agent)
         if save_model:
             agent.save_model(max_timesteps)
@@ -87,23 +94,23 @@ if __name__ == "__main__":
         print("Training finished. It's time to watch!")
 
     # Reinitialize the game with window visible
-    game.close()
-    game.set_window_visible(True)
-    game.set_mode(vzd.Mode.ASYNC_PLAYER)
-    game.init()
+    agent.game.close()
+    agent.game.set_window_visible(True)
+    agent.game.set_mode(vzd.Mode.ASYNC_PLAYER)
+    agent.game.init()
 
     for _ in range(episodes_to_watch):
-        game.new_episode()
-        while not game.is_episode_finished():
-            state = preprocess(game.get_state().screen_buffer, agent.resolution)
-            _,_,best_action_index= agent.get_action(state)
+        agent.game.new_episode()
+        while not agent.game.is_episode_finished():
+            state = preprocess(agent.game.get_state().screen_buffer, agent.resolution)
+            best_action_index,_= agent.get_action(state)
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
-            game.set_action(actions[best_action_index])
+            agent.game.set_action(best_action_index)
             for _ in range(12):
-                game.advance_action()
+                agent.game.advance_action()
 
         # Sleep between episodes
         sleep(1.0)
-        score = game.get_total_reward()
+        score = agent.game.get_total_reward()
         print("Total score: ", score)

@@ -4,6 +4,7 @@ from collections import deque
 import time
 
 import numpy as np
+import vizdoom as vzd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,6 +12,7 @@ import torchvision
 from torchinfo import summary
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
+from torch.distributions.bernoulli import Bernoulli
 from tqdm import tqdm, trange
 import skimage
 
@@ -40,7 +42,8 @@ class Actor(nn.Module):
             nn.Linear(in_features=256, out_features=128),
             nn.ReLU(),
             nn.Linear(128, out_features=available_actions_count),
-            # nn.Softmax(),
+            nn.Softmax(), # maybe sigmoid?
+            # nn.Sigmoid(),
             )
     def forward(self, x):
         return self.model(x)
@@ -82,13 +85,25 @@ def unison_shuffled_copies(a, b, c, d):
     # assert len(a) == len(e)
     p = np.random.permutation(len(a))
     return a[p], b[p], c[p], d[p]
+
+def unison_sample(a,b,c,d, num_samples):
+    assert len(a) == len(b)
+    assert len(a) == len(c)
+    assert len(a) == len(d)
+    idx = np.random.choice(np.arange(len(a)), num_samples, replace=False)
+    a_sample = a[idx]
+    b_sample = b[idx]
+    c_sample = c[idx]
+    d_sample = d[idx]
+    return a_sample, b_sample, c_sample, d_sample
+
     
 class Actor_Critic_Agent():
-    def __init__(self, actions, game, load_model = "") -> None:
+    def __init__(self, action_size, game, load_model = "") -> None:
         self.init_hyperparameters()
         self.game = game
-        self.actions = actions
-        self.action_size = len(actions)
+        # self.actions = actions
+        self.action_size = action_size
         self.actor = Actor(self.action_size).to(DEVICE)
         self.critic = Critic().to(DEVICE)
 
@@ -110,56 +125,58 @@ class Actor_Critic_Agent():
     def learn(self, total_time_steps):
         curr_t = 0
         while curr_t < total_time_steps:
-            batch_obs, batch_acts, batch_log_probs, batch_rtgs, batch_lens = self.rollout()
-            
+            self.actor.eval()
+            self.critic.eval()
+            full_batch_obs, full_batch_acts, full_batch_log_probs, full_batch_rtgs, full_batch_lens = self.rollout()
             # Calculate how many timesteps we collected this batch   
-            curr_t += np.sum(batch_lens)
+            curr_t += np.sum(full_batch_lens)
+            for i in range(self.num_minibatches):
+                batch_obs, batch_acts, batch_log_probs, batch_rtgs = unison_sample(full_batch_obs, full_batch_acts, full_batch_log_probs, full_batch_rtgs, self.mini_batch_size)
 
-            print(batch_obs.shape)
-            print(batch_acts.shape)
-            print(batch_rtgs.shape)
+                # Calculate V_{phi, k}
+                V, _ = self.evaluate(batch_obs, batch_acts)
+                # ALG STEP 5
+                # Calculate advantage
+                A_k = batch_rtgs - V.detach().cpu()
 
-            input(":")
+                # Normalize advantages
+                A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
 
-            # Calculate V_{phi, k}
-            V = torch.zeros((batch_obs.shape[0]))
-            for i in range((batch_obs.shape[0]//300+1)):
-                start = i*300
-                end = min(start+300, batch_obs.shape[0])
-                V[start:end], _ = self.evaluate(batch_obs[start:end,:,:,:], batch_acts[start:end,:,:])
-            # ALG STEP 5
-            # Calculate advantage
-            A_k = batch_rtgs - V.detach().cpu()
+                self.actor.train()
+                self.critic.train()
 
-            # Normalize advantages
-            A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
-            print("hello")
-            for _ in range(self.n_updates_per_iteration):
+                for _ in range(self.n_updates_per_iteration):
 
-                # Calculate pi_theta(a_t | s_t)
-                V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
-                # Calculate ratios
-                ratios = torch.exp(curr_log_probs - batch_log_probs)
-                # Calculate surrogate losses
-                surr1 = ratios * A_k
-                surr2 = torch.clamp(ratios, 1 - self.clip, 1 + self.clip) * A_k
+                    # Calculate pi_theta(a_t | s_t)
+                    V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
+                    # print(curr_log_probs)
+                    # print(batch_log_probs)
+                    # Calculate ratios
+                    ratios = torch.exp(curr_log_probs - batch_log_probs)
+                    # Calculate surrogate losses
+                    surr1 = ratios * A_k
+                    surr2 = torch.clamp(ratios, 1 - self.clip, 1 + self.clip) * A_k
 
-                # Calculate Actor and critic loss
-                actor_loss = (-torch.min(surr1, surr2)).mean()
-                critic_loss = self.critic_criterion(V, batch_rtgs)
-                print("Actor_Loss:", actor_loss.item())
-                print("Critic_Loss:", critic_loss.item())
+                    # Calculate Actor and critic loss
+                    actor_loss = (-torch.min(surr1, surr2)).mean()
+                    critic_loss = self.critic_criterion(V, batch_rtgs)
+                    print("Actor_Loss:", actor_loss.item())
+                    print("Critic_Loss:", critic_loss.item())
 
-                # Calculate gradients and perform backward propagation for actor 
-                # network
-                self.actor_optim.zero_grad()
-                actor_loss.backward()
-                self.actor_optim.step()
+                    # Calculate gradients and perform backward propagation for actor 
+                    # network
+                    self.actor_optim.zero_grad()
+                    actor_loss.backward()
+                    self.actor_optim.step()
 
-                # Calculate gradients and perform backward propagation for critic network    
-                self.critic_optim.zero_grad()    
-                critic_loss.backward()    
-                self.critic_optim.step()
+                    # Calculate gradients and perform backward propagation for critic network    
+                    self.critic_optim.zero_grad()    
+                    critic_loss.backward()    
+                    self.critic_optim.step()
+                    if self.epsilon > self.epsilon_min:
+                        self.epsilon *= self.epsilon_decay
+                    else:
+                        self.epsilon = self.epsilon_min
 
         pass
     
@@ -180,6 +197,7 @@ class Actor_Critic_Agent():
             ep_rews = []
             self.game.new_episode()
             done = False
+            curr_kill = 0
             for ep_t in range(self.max_timesteps_per_episode):
                 # Increment timesteps ran this batch so far
                 t += 1
@@ -187,10 +205,14 @@ class Actor_Critic_Agent():
                 # Collect observation
                 obs = preprocess(self.game.get_state().screen_buffer, self.resolution)
                 batch_obs.append(obs)
-                action, log_prob, curr_action = self.get_action(obs)
-                # print(action)
-                # print(log_prob)
-                reward = self.game.make_action(self.actions[curr_action], self.frame_repeat)
+                action, log_prob = self.get_action(obs)
+                reward = self.game.make_action(action, self.frame_repeat)
+                kill_num = self.game.get_game_variable(vzd.GameVariable.KILLCOUNT)
+                if curr_kill < kill_num:
+                    reward += (kill_num-curr_kill)*10
+                    curr_kill = kill_num
+                # v_p = (v - v_min)/(v_max - v_min)*(new_max - new_min) + new_min
+                reward = (reward- self.min_rew)/(self.max_rew-self.min_rew)*(1+1)-1
                 done = self.game.is_episode_finished()
             
                 # Collect reward, action, and log prob
@@ -198,7 +220,7 @@ class Actor_Critic_Agent():
                 batch_actions.append(action)
                 batch_log_probs.append(log_prob)
                 if done:
-                    train_scores.append(self.game.get_total_reward())
+                    train_scores.append(self.game.get_total_reward()+self.game.get_game_variable(vzd.GameVariable.KILLCOUNT)*10)
                     break
             # Collect episodic length and rewards
             batch_lens.append(ep_t + 1) # plus 1 because timestep starts at 0
@@ -224,28 +246,44 @@ class Actor_Critic_Agent():
     
 
     def get_action(self, obs):
-        obs = torch.tensor(obs.astype(np.float32)).reshape((1,1,self.resolution[0],self.resolution[1]))
-        mean = self.actor(obs.to(DEVICE)).cpu()
-        dist = MultivariateNormal(mean, self.cov_mat)
-        action = dist.sample()
-        # action = np.random.choice(self.action_size, p=action)
-        log_prob = dist.log_prob(action)
-        curr_action = torch.argmax(action[0])
-        return action.detach().numpy(), log_prob.detach(), curr_action
+        if np.random.uniform() < self.epsilon:
+            mean = torch.ones((self.action_size))/self.action_size
+            dist = Bernoulli(mean)
+            action = dist.sample()
+            # action = np.random.choice(self.action_size, p=action)
+            log_prob = dist.log_prob(action)
+            log_prob = log_prob.sum()
+            return action.detach().numpy(), log_prob.detach()
+        else:
+            obs = torch.tensor(obs.astype(np.float32)).reshape((1,1,self.resolution[0],self.resolution[1]))
+            mean = self.actor(obs.to(DEVICE)).cpu()
+            dist = Bernoulli(mean)
+            action = dist.sample()
+            # action = np.random.choice(self.action_size, p=action)
+            log_prob = dist.log_prob(action)
+            log_prob = log_prob.sum()
+            return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-larger"
+        self.name = "ACNagent-larger-E1M2"
         self.gamma = 0.95
         self.actor_lr = 0.00005
-        self.critic_lr = 0.01
-        self.timesteps_per_batch = 2100 #2000 
+        self.critic_lr = 0.00005
+        self.timesteps_per_batch = 4000 #2000 
         self.max_timesteps_per_episode = 2000
         self.frame_repeat = 12
-        self.n_updates_per_iteration = 5
+        self.n_updates_per_iteration = 1
         self.clip = 0.2 # As recommended by the paper
         self.test_episodes_per_epoch = 100
         self.ckpt_dir = "./ckpt/"
-        self.resolution = (32,48)
+        self.resolution = (64,96)
+        self.num_minibatches = 40
+        self.mini_batch_size = 100
+        self.epsilon = 1
+        self.epsilon_decay = 0.9996
+        self.epsilon_min = 0.1
+        self.min_rew = -30
+        self.max_rew = 30
         pass
     
     def compute_rtgs(self, batch_rews):
@@ -271,12 +309,14 @@ class Actor_Critic_Agent():
         # obs.unsqueeze(0)
         V = self.critic(batch_obs.to(DEVICE)).squeeze().cpu()
 
+
         # Calculate the log probabilities of batch actions using most 
         # recent actor network.
         # This segment of code is similar to that in get_action()
         mean = self.actor(batch_obs.to(DEVICE)).cpu()
-        dist = MultivariateNormal(mean, self.cov_mat)
+        dist = Bernoulli(mean)
         log_probs = dist.log_prob(batch_acts)
+        log_probs = log_probs.sum(dim = 1)
         # Return predicted values V and log probs log_probs
         return V, log_probs
 
