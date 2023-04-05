@@ -245,11 +245,11 @@ class DQNAgent:
         self.memory = deque(maxlen=memory_size)
         self.criterion = nn.MSELoss()
 
-        if load_model:
-            print("Loading model from: ", model_savefile)
-            self.q_net = torch.load(model_savefile)
-            self.target_net = torch.load(model_savefile)
-            self.epsilon = self.epsilon_min
+        
+        print("Loading model from: ", model_savefile)
+        self.q_net = torch.load(model_savefile)
+        self.target_net = torch.load(model_savefile)
+        self.epsilon = self.epsilon_min
 
         # else:
         #     print("Initializing new model")
