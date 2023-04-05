@@ -52,9 +52,10 @@ config_file_path = os.path.join(vzd.scenarios_path, "simpler_basic.cfg")
 if torch.cuda.is_available():
     DEVICE = torch.device("cuda")
     torch.backends.cudnn.benchmark = True
+    print("running on my GPU")
 else:
     DEVICE = torch.device("cpu")
-
+    print("sad life")
 
 def preprocess(img):
     """Down samples image to resolution"""
@@ -72,6 +73,8 @@ def create_simple_game():
     game.set_mode(vzd.Mode.PLAYER)
     game.set_screen_format(vzd.ScreenFormat.GRAY8)
     game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
+    game.set_doom_scenario_path(os.path.join(vzd.scenarios_path, "DOOM.WAD"))
+    game.set_doom_map("E1M1")
     game.init()
     print("Doom initialized.")
 
@@ -156,7 +159,7 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
             print("Saving the network weights to:", model_savefile)
             torch.save(agent.q_net, model_savefile)
         print("Total elapsed time: %.2f minutes" % ((time() - start_time) / 60.0))
-
+    
     game.close()
     return agent, game
 
@@ -241,17 +244,17 @@ class DQNAgent:
         self.lr = lr
         self.memory = deque(maxlen=memory_size)
         self.criterion = nn.MSELoss()
-        
+
         if load_model:
             print("Loading model from: ", model_savefile)
             self.q_net = torch.load(model_savefile)
             self.target_net = torch.load(model_savefile)
             self.epsilon = self.epsilon_min
 
-        else:
-            print("Initializing new model")
-            self.q_net = DuelQNet(action_size).to(DEVICE)
-            self.target_net = DuelQNet(action_size).to(DEVICE)
+        # else:
+        #     print("Initializing new model")
+        #     self.q_net = DuelQNet(action_size).to(DEVICE)
+        #     self.target_net = DuelQNet(action_size).to(DEVICE)
 
         self.opt = optim.SGD(self.q_net.parameters(), lr=self.lr)
 
