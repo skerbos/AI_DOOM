@@ -15,7 +15,9 @@ from torch.distributions import MultivariateNormal
 from torch.distributions.bernoulli import Bernoulli
 from tqdm import tqdm, trange
 import skimage
+# from AI_DOOM.rewards import hit_reward
 
+from rewards import dist_reward, kill_reward, hit_reward, ammo_reward
 
 # Uses GPU if available
 if torch.cuda.is_available():
@@ -24,6 +26,65 @@ if torch.cuda.is_available():
 else:
     DEVICE = torch.device("cpu")
 
+class Actor_np(nn.Module):
+    """
+    This is Duel DQN architecture.
+    see https://arxiv.org/abs/1511.06581 for more information.
+    """
+
+    def __init__(self, available_actions_count):
+        super().__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(1, 8, kernel_size=3, stride=2, bias=False),
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(8, 8, kernel_size=3, stride=2, bias=False),
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+        )
+
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(8, 8, kernel_size=3, stride=1, bias=False),
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+        )
+
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(8, 16, kernel_size=3, stride=1, bias=False),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+        )
+
+        # self.state_fc = nn.Sequential(nn.Linear(96, 64), nn.ReLU(), nn.Linear(64, 1))
+
+        # self.advantage_fc = nn.Sequential(
+        #     nn.Linear(96, 64), nn.ReLU(), nn.Linear(64, available_actions_count)
+        # )
+        self.classifier = nn.Sequential(
+            nn.Linear(192,64),
+            nn.ReLU(),
+            nn.Linear(64, available_actions_count)
+        )
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = x.view(-1, 192)
+        x1 = x[:, :96]  # input for the net to calculate the state value
+        x2 = x[:, 96:]  # relative advantage of actions in the state
+        state_value = self.state_fc(x1).reshape(-1, 1)
+        advantage_values = self.advantage_fc(x2)
+        x = state_value + (
+            advantage_values - advantage_values.mean(dim=1).reshape(-1, 1)
+        )
+
+        return x
+
 class Actor(nn.Module):
     def __init__(self, available_actions_count) -> None:
         super().__init__()
@@ -31,6 +92,22 @@ class Actor(nn.Module):
         self.model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
         for param in self.model.parameters():
             param.requires_grad = False
+        count = 0
+        for i in self.model.children():
+            count += 1
+            if count >1:
+                # print("count:", count)
+                # print(i)
+                for param in i.parameters():
+                    param.requires_grad = True
+            nc = 0
+            for j in i.children():
+                nc +=1
+                if nc == 9:
+                    # print("count:", nc)
+                    # print(j)
+                    for param in j.parameters():
+                        param.requires_grad = True
         self.model = nn.Sequential(
             self.initial_layer,
             self.model,
@@ -42,8 +119,8 @@ class Actor(nn.Module):
             nn.Linear(in_features=256, out_features=128),
             nn.ReLU(),
             nn.Linear(128, out_features=available_actions_count),
-            nn.Softmax(), # maybe sigmoid?
-            # nn.Sigmoid(),
+            # nn.Softmax(), # maybe sigmoid?
+            nn.Sigmoid(),
             )
     def forward(self, x):
         return self.model(x)
@@ -55,6 +132,22 @@ class Critic(nn.Module):
         self.model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
         for param in self.model.parameters():
             param.requires_grad = False
+        count = 0
+        for i in self.model.children():
+            count += 1
+            if count >1:
+                # print("count:", count)
+                # print(i)
+                for param in i.parameters():
+                    param.requires_grad = True
+            nc = 0
+            for j in i.children():
+                nc +=1
+                if nc == 9:
+                    # print("count:", nc)
+                    # print(j)
+                    for param in j.parameters():
+                        param.requires_grad = True
         self.model = nn.Sequential(
             self.initial_layer,
             self.model,
@@ -73,8 +166,11 @@ class Critic(nn.Module):
 
 def preprocess(img, resolution):
     """Down samples image to resolution"""
+    # print(img)
     img = skimage.transform.resize(img, resolution)
     img = img.astype(np.float32)
+    # print(img)
+    # assert False
     img = np.expand_dims(img, axis=0)
     return img
 
@@ -99,13 +195,14 @@ def unison_sample(a,b,c,d, num_samples):
 
     
 class Actor_Critic_Agent():
-    def __init__(self, action_size, game, load_model = "") -> None:
+    def __init__(self, action_size, game, load_model = "", start_time = 0) -> None:
         self.init_hyperparameters()
         self.game = game
         # self.actions = actions
         self.action_size = action_size
         self.actor = Actor(self.action_size).to(DEVICE)
         self.critic = Critic().to(DEVICE)
+        self.start_time = start_time
 
         if load_model != "":
             checkpoint = torch.load(load_model)
@@ -160,8 +257,8 @@ class Actor_Critic_Agent():
                     # Calculate Actor and critic loss
                     actor_loss = (-torch.min(surr1, surr2)).mean()
                     critic_loss = self.critic_criterion(V, batch_rtgs)
-                    print("Actor_Loss:", actor_loss.item())
-                    print("Critic_Loss:", critic_loss.item())
+                    # print("Actor_Loss:", actor_loss.item())
+                    # print("Critic_Loss:", critic_loss.item())
 
                     # Calculate gradients and perform backward propagation for actor 
                     # network
@@ -173,10 +270,10 @@ class Actor_Critic_Agent():
                     self.critic_optim.zero_grad()    
                     critic_loss.backward()    
                     self.critic_optim.step()
-                    if self.epsilon > self.epsilon_min:
-                        self.epsilon *= self.epsilon_decay
-                    else:
-                        self.epsilon = self.epsilon_min
+                if self.epsilon > self.epsilon_min:
+                    self.epsilon *= self.epsilon_decay
+                else:
+                    self.epsilon = self.epsilon_min
 
         pass
     
@@ -197,7 +294,7 @@ class Actor_Critic_Agent():
             ep_rews = []
             self.game.new_episode()
             done = False
-            curr_kill = 0
+            total_rew = 0
             for ep_t in range(self.max_timesteps_per_episode):
                 # Increment timesteps ran this batch so far
                 t += 1
@@ -206,27 +303,40 @@ class Actor_Critic_Agent():
                 obs = preprocess(self.game.get_state().screen_buffer, self.resolution)
                 batch_obs.append(obs)
                 action, log_prob = self.get_action(obs)
-                reward = self.game.make_action(action, self.frame_repeat)
                 kill_num = self.game.get_game_variable(vzd.GameVariable.KILLCOUNT)
-                if curr_kill < kill_num:
-                    reward += (kill_num-curr_kill)*10
-                    curr_kill = kill_num
+                hit_num = self.game.get_game_variable(vzd.GameVariable.HITCOUNT)
+                AMMO_num = self.game.get_game_variable(vzd.GameVariable.AMMO1)
+                reward = self.game.make_action(action, self.frame_repeat)
+                # reward += kill_reward(self.game,10,kill_num) + hit_reward(self.game, 1, hit_num) + ammo_reward(self.game, 1, AMMO_num)
+                done = self.game.is_episode_finished()
+                if not done:
+                    # print(reward)
+                    reward += dist_reward(self.game,9e-6,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2)\
+                        +dist_reward(self.game,5e-6,self.x_ckpt_1, self.y_ckpt_1, self.z_ckpt_1)\
+                          + dist_reward(self.game,1e-6,self.x_ckpt_0, self.y_ckpt_0, self.z_ckpt_0)\
+                              - dist_reward(self.game,5e-7,self.x_start, self.y_start, self.z_start)\
+                                    - dist_reward(self.game,5e-7,self.x_bad, self.y_bad, self.z_bad)
+                    # print(reward)
+                    # assert False
+                total_rew += reward
                 # v_p = (v - v_min)/(v_max - v_min)*(new_max - new_min) + new_min
                 reward = (reward- self.min_rew)/(self.max_rew-self.min_rew)*(1+1)-1
-                done = self.game.is_episode_finished()
             
                 # Collect reward, action, and log prob
                 ep_rews.append(reward)
                 batch_actions.append(action)
                 batch_log_probs.append(log_prob)
                 if done:
-                    train_scores.append(self.game.get_total_reward()+self.game.get_game_variable(vzd.GameVariable.KILLCOUNT)*10)
+                    # print("hello")
+                    train_scores.append(total_rew)
                     break
+                # assert False
             # Collect episodic length and rewards
             batch_lens.append(ep_t + 1) # plus 1 because timestep starts at 0
             batch_rewards.append(ep_rews)
         pbar.close()
         train_scores = np.array(train_scores)
+        print(train_scores)
         print(
                 "Results: mean: {:.1f} +/- {:.1f},".format(
                     train_scores.mean(), train_scores.std()
@@ -265,16 +375,16 @@ class Actor_Critic_Agent():
             return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-larger-E1M2"
+        self.name = "ACNagent-unfreeze-E1M1-dist2-v2-ckpt2-ckpt1-ckpt0"
         self.gamma = 0.95
-        self.actor_lr = 0.00005
-        self.critic_lr = 0.00005
+        self.actor_lr = 1e-3
+        self.critic_lr = 1e-3
         self.timesteps_per_batch = 4000 #2000 
         self.max_timesteps_per_episode = 2000
         self.frame_repeat = 12
         self.n_updates_per_iteration = 1
         self.clip = 0.2 # As recommended by the paper
-        self.test_episodes_per_epoch = 100
+        self.test_episodes_per_epoch = 10
         self.ckpt_dir = "./ckpt/"
         self.resolution = (64,96)
         self.num_minibatches = 40
@@ -282,8 +392,26 @@ class Actor_Critic_Agent():
         self.epsilon = 1
         self.epsilon_decay = 0.9996
         self.epsilon_min = 0.1
-        self.min_rew = -30
-        self.max_rew = 30
+        self.min_rew = -15
+        self.max_rew = 15
+        self.x_ckpt_0 = 1285
+        self.y_ckpt_0 = -2875
+        self.z_ckpt_0 = 0
+        self.x_ckpt_1 = 1500
+        self.y_ckpt_1 = -2500
+        self.z_ckpt_1 = 0
+        self.x_ckpt_2 = 1800
+        self.y_ckpt_2 = -2500
+        self.z_ckpt_2 = 0
+        self.x_end = 3000
+        self.y_end = -4865
+        self.z_end = -24
+        self.x_start = 1056
+        self.y_start = -3616
+        self.z_start = 0
+        self.x_bad = 510
+        self.y_bad = -3230
+        self.z_bad = 0
         pass
     
     def compute_rtgs(self, batch_rews):
@@ -322,7 +450,7 @@ class Actor_Critic_Agent():
 
     def save_model(self, max_timesteps):
         # Specify a path to save to
-        PATH = os.path.join(self.ckpt_dir,f"model-doom-{self.name}-{self.actor_lr}-{self.critic_lr}-{max_timesteps}-{self.resolution}.pth")
+        PATH = os.path.join(self.ckpt_dir,f"model-doom-{self.name}-{self.actor_lr}-{self.critic_lr}-{self.start_time+max_timesteps}-{self.resolution}.pth")
 
         torch.save({
                     'Actor_state_dict': self.actor.state_dict(),
@@ -331,4 +459,22 @@ class Actor_Critic_Agent():
         
 if __name__ =="__main__":
     model = Actor(9)
-    summary(model, (1,1,480,640))
+    # model = torchvision.models.alexnet(weights='DEFAULT') 
+    # model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
+    summary(model, input_size=(1,1,240,320))
+    # count = 0
+    # for i in model.children():
+    #     count += 1
+    #     if count >1:
+    #         print("count:", count)
+    #         print(i)
+    #         for param in i.parameters():
+    #             param.requires_grad = True
+    #     nc = 0
+    #     for j in i.children():
+    #         nc +=1
+    #         if nc == 9:
+    #             print("count:", nc)
+    #             print(j)
+    #             for param in j.parameters():
+    #                 param.requires_grad = True

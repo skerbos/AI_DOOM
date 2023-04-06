@@ -9,6 +9,7 @@ import vizdoom as vzd
 from tqdm import trange
 
 from Agents.ACN import Actor_Critic_Agent, preprocess
+from rewards import dist_reward
 
 # Configuration file path
 config_file_path = os.path.join(vzd.scenarios_path, "Single_player.cfg")
@@ -30,8 +31,8 @@ def create_simple_game():
     print("Initializing doom...")
     game = vzd.DoomGame()
     game.load_config(config_file_path)
-    game.set_window_visible(False)
-    game.set_doom_map("E1M2")
+    game.set_window_visible(True)
+    game.set_doom_map("E1M1")
     game.set_mode(vzd.Mode.PLAYER)
     game.set_screen_format(vzd.ScreenFormat.GRAY8)
     game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
@@ -68,6 +69,8 @@ if __name__ == "__main__":
     start_time = time()
     game = create_simple_game()
     n = game.get_available_buttons_size()
+    load_model = ".\ckpt\model-doom-ACNagent-larger-E1M1-dist2-ckpt1-ckpt0-unfreeze-0.001-0.001-300000-(64, 96).pth"
+    start_time = 300000
     # print(n)
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
     # print(actions[0])
@@ -78,11 +81,11 @@ if __name__ == "__main__":
     episodes_to_watch = 3
 
     # Initialize our agent with the set parameters
-    agent = Actor_Critic_Agent(action_size= n, game = game)
-
+    agent = Actor_Critic_Agent(action_size= n, game = game, load_model=load_model, start_time=start_time)
+    agent.epsilon= 0.6
     # Run the training for the set number of epochs
     if not skip_learning:
-        max_timesteps = 300000
+        max_timesteps = 200000
         agent.learn(max_timesteps)
         agent.critic.eval()
         agent.actor.eval()
@@ -107,6 +110,7 @@ if __name__ == "__main__":
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             agent.game.set_action(best_action_index)
+            print(dist_reward(agent.game, 5e-6, agent.x_ckpt_1, agent.y_ckpt_1, agent.z_ckpt_1))
             for _ in range(12):
                 agent.game.advance_action()
 

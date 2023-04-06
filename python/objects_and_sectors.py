@@ -13,10 +13,10 @@ from random import choice
 
 import matplotlib.pyplot as plt
 import vizdoom as vzd
-from vizdoom import os
+import os
 
 
-DEFAULT_CONFIG = os.path.join(vzd.scenarios_path, "my_way_home.cfg")
+DEFAULT_CONFIG = os.path.join(vzd.scenarios_path, "Single_player.cfg")
 
 
 if __name__ == "__main__":
@@ -40,6 +40,8 @@ if __name__ == "__main__":
     game.load_config(args.config)
     game.set_render_hud(False)
     game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
+    game.set_doom_map("E1M1")
+
 
     # Enables information about all objects present in the current episode/level.
     game.set_objects_info_enabled(True)
@@ -56,7 +58,7 @@ if __name__ == "__main__":
 
     actions = [[True, False, False], [False, True, False], [False, False, True]]
 
-    episodes = 10
+    episodes = 1
     sleep_time = 1.0 / vzd.DEFAULT_TICRATE  # = 0.028
 
     for i in range(episodes):
@@ -68,7 +70,10 @@ if __name__ == "__main__":
 
             # Gets the state
             state = game.get_state()
+            print(state.game_variables)
+
             game.make_action(choice(actions))
+            print(state.game_variables)
 
             print("State #" + str(state.number))
             print(
@@ -79,6 +84,7 @@ if __name__ == "__main__":
                 ", z:",
                 state.game_variables[2],
             )
+            # assert False
             print("Objects:")
 
             # Print information about objects present in the episode.
@@ -92,6 +98,7 @@ if __name__ == "__main__":
                     ", z:",
                     o.position_z,
                 )
+                # input(":")
 
                 # Other available fields:
                 # print("Object rotation angle", o.angle, "pitch:", o.pitch, "roll:", o.roll)

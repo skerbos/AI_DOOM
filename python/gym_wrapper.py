@@ -10,7 +10,8 @@ from vizdoom import gym_wrapper  # noqa
 
 if __name__ == "__main__":
     env = gym.make("VizdoomHealthGatheringSupreme-v0", render_mode="human")
-
+    print(env.action_space.__doc__)
+    input(":")
     # Rendering random rollouts for ten episodes
     for _ in range(10):
         done = False
