@@ -17,7 +17,7 @@ from tqdm import tqdm, trange
 import skimage
 # from AI_DOOM.rewards import hit_reward
 
-from rewards import dist_reward, kill_reward, hit_reward, ammo_reward
+from rewards import dist_reward, kill_reward, hit_reward, ammo_reward, dist_fixed_reward
 
 # Uses GPU if available
 if torch.cuda.is_available():
@@ -306,16 +306,22 @@ class Actor_Critic_Agent():
                 kill_num = self.game.get_game_variable(vzd.GameVariable.KILLCOUNT)
                 hit_num = self.game.get_game_variable(vzd.GameVariable.HITCOUNT)
                 AMMO_num = self.game.get_game_variable(vzd.GameVariable.AMMO1)
+                state = self.game.get_state()
+                x_player = state.game_variables[0]
+                y_player = state.game_variables[1]
+                z_player = state.game_variables[2]
                 reward = self.game.make_action(action, self.frame_repeat)
                 # reward += kill_reward(self.game,10,kill_num) + hit_reward(self.game, 1, hit_num) + ammo_reward(self.game, 1, AMMO_num)
                 done = self.game.is_episode_finished()
                 if not done:
                     # print(reward)
-                    reward += dist_reward(self.game,9e-6,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2)\
-                        +dist_reward(self.game,5e-6,self.x_ckpt_1, self.y_ckpt_1, self.z_ckpt_1)\
-                          + dist_reward(self.game,1e-6,self.x_ckpt_0, self.y_ckpt_0, self.z_ckpt_0)\
-                              - dist_reward(self.game,5e-7,self.x_start, self.y_start, self.z_start)\
-                                    - dist_reward(self.game,5e-7,self.x_bad, self.y_bad, self.z_bad)
+                    reward += dist_fixed_reward(self.game,10,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2, x_player, y_player, z_player)
+                    
+                    # reward += dist_reward(self.game,9e-6,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2)\
+                    #     +dist_reward(self.game,5e-6,self.x_ckpt_1, self.y_ckpt_1, self.z_ckpt_1)\
+                    #       + dist_reward(self.game,1e-6,self.x_ckpt_0, self.y_ckpt_0, self.z_ckpt_0)\
+                    #           - dist_reward(self.game,5e-7,self.x_start, self.y_start, self.z_start)\
+                    #                 - dist_reward(self.game,5e-7,self.x_bad, self.y_bad, self.z_bad)
                     # print(reward)
                     # assert False
                 total_rew += reward
@@ -375,7 +381,7 @@ class Actor_Critic_Agent():
             return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-unfreeze-E1M1-dist2-v2-ckpt2-ckpt1-ckpt0"
+        self.name = "ACNagent-unfreeze-E1M1-distfixed-v2-ckpt2-ckpt1-ckpt0"
         self.gamma = 0.95
         self.actor_lr = 1e-3
         self.critic_lr = 1e-3
