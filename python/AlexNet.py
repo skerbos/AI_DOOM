@@ -16,7 +16,8 @@ import torch.nn as nn
 import torch.optim as optim
 import vizdoom as vzd
 from tqdm import trange
-from torchvision.models import alexnet, AlexNet_Weights
+from torchvision.models import resnet,ResNet101_Weights
+from torchvision.models import resnet50, ResNet50_Weights
 import torchvision
 from torchinfo import summary
 
@@ -166,59 +167,8 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
     return agent, game
 
 
-#class DuelQNet(nn.Module):
 
-#     def __init__(self, available_actions_count):
-#         super().__init__()
-#         self.conv1 = nn.Sequential(
-#             nn.Conv2d(1, 8, kernel_size=3, stride=2, bias=False),
-#             nn.BatchNorm2d(8),
-#             nn.ReLU(),
-#         )
-
-#         self.conv2 = nn.Sequential(
-#             nn.Conv2d(8, 8, kernel_size=3, stride=2, bias=False),
-#             nn.BatchNorm2d(8),
-#             nn.ReLU(),
-#         )
-
-#         self.conv3 = nn.Sequential(
-#             nn.Conv2d(8, 8, kernel_size=3, stride=1, bias=False),
-#             nn.BatchNorm2d(8),
-#             nn.ReLU(),
-#         )
-
-#         self.conv4 = nn.Sequential(
-#             nn.Conv2d(8, 16, kernel_size=3, stride=1, bias=False),
-#             nn.BatchNorm2d(16),
-#             nn.ReLU(),
-#         )
-
-#         self.state_fc = nn.Sequential(nn.Linear(96, 64), nn.ReLU(), nn.Linear(64, 1))
-
-#         self.advantage_fc = nn.Sequential(
-#             nn.Linear(96, 64), nn.ReLU(), nn.Linear(64, available_actions_count)
-#         )
-
-#     def forward(self, x):
-#         x = self.conv1(x)
-#         x = self.conv2(x)
-#         x = self.conv3(x)
-#         x = self.conv4(x)
-#         x = x.view(-1, 192)
-#         x1 = x[:, :96]  # input for the net to calculate the state value
-#         x2 = x[:, 96:]  # relative advantage of actions in the state
-#         state_value = self.state_fc(x1).reshape(-1, 1)
-#         advantage_values = self.advantage_fc(x2)
-#         x = state_value + (
-#             advantage_values - advantage_values.mean(dim=1).reshape(-1, 1)
-#         )
-
-#         return x
-# # Initialize model
-# weights = AlexNet_Weights.DEFAULT
-# model = alexnet(weights=weights)
-class alexnetmodel(nn.Module):
+class resnetmodel(nn.Module):
     def __init__(self,available_actions_count) -> None:
         super().__init__()
         self.state_fc = nn.Sequential(nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 1))
@@ -228,7 +178,7 @@ class alexnetmodel(nn.Module):
         #self.state_fc = nn.Sequential(nn.Linear(64, 32), nn.ReLU(), nn.Linear(64, 1))
 
         self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
-        self.model = torchvision.models.alexnet(weights =  torchvision.models.AlexNet_Weights.DEFAULT)
+        self.model = torchvision.models.resnet50(weights =  torchvision.models.ResNet50_Weights.DEFAULT)
         for param in self.model.parameters():
             param.requires_grad = False
         self.model = nn.Sequential(
@@ -257,10 +207,10 @@ class alexnetmodel(nn.Module):
             advantage_values - advantage_values.mean(dim=1).reshape(-1, 1)
         )
         return x
-model = alexnetmodel(9)
+#model = resnetmodel(9)
 #model = torchvision.models.alexnet(weights =  torchvision.models.AlexNet_Weights.DEFAULT)
 
-summary(model, input_size=(64,1,240,320))
+#summary(model, input_size=(64,1,240,320))
 
 class DQNAgent:
     def __init__(
@@ -293,8 +243,8 @@ class DQNAgent:
 
         else:
             print("Initializing new model")
-            self.q_net = alexnetmodel(action_size).to(DEVICE)
-            self.target_net = alexnetmodel(action_size).to(DEVICE)
+            self.q_net = resnetmodel(action_size).to(DEVICE)
+            self.target_net = resnetmodel(action_size).to(DEVICE)
 
         self.opt = optim.SGD(self.q_net.parameters(), lr=self.lr)
 
