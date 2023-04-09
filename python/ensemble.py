@@ -178,16 +178,9 @@ class ensemblemodel(nn.Module):
 
         self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
         self.initial_layerb = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
-        #self.initial_layerc = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
-        #self.model = torchvision.models.resnet(weights =  torchvision.models.ConvNeXt_Base_Weights.DEFAULT)
-        #self.model = torchvision.models.convexnet(weights = torchvision.models.ConvNeXt_Base_Weights.DEFAULT)
-        # self.model  = torchvision.models.convnext_base(weights= torchvision.models.ConvNeXt_Base_Weights.DEFAULT)
-        # self.modelb = torchvision.models.alexnet(weights =  torchvision.models.AlexNet_Weights.DEFAULT)
-        # self.modelc = torchvision.models.convnext_base(weights= torchvision.models.ConvNeXt_Base_Weights.DEFAULT)
-        # for param in self.model.parameters():
-        #     param.requires_grad = False
-        resnet = torchvision.models.resnet50(weights = True)
-        alexnet = torchvision.models.alexnet(weights = True)
+        
+        resnet = torchvision.models.resnet50(weights = torchvision.models.ResNet50_Weights.DEFAULT)
+        alexnet = torchvision.models.alexnet(weights = torchvision.models.AlexNet_Weights.DEFAULT)
         # Telling the model to keep pre-trained weights
         for param in resnet.parameters():    
             param.requires_grad = False
@@ -195,10 +188,6 @@ class ensemblemodel(nn.Module):
             param.requires_grad = False
         self.model_1 = resnet
         self.model_2 = alexnet
-        # Remove last linear layer from both models:
-        # self.model_1.fc = nn.Identity()
-        # self.model_2.fc = nn.Identity()
-        # self.fc = nn.Linear(2048, 6) 
         
         self.model_1 = nn.Sequential(
             self.initial_layer,
@@ -226,29 +215,11 @@ class ensemblemodel(nn.Module):
             )
        
     def forward(self, x):
-        #x = x.view(-1, 1, 600, 128)
-        #print(x.shape)
-        #x = torch.squeeze(x,dim=1) # add channel dimension
-        # x = x.unsqueeze(1)
-        # x = torch.squeeze(x, dim=2)
-        # x = x.view(1, 64, 240, 320)
-        # torch.unsqueeze(x, 1)
-        # x = self.model(x)
-        # x = self.modelb(x)
-        # x = self.modelc(x)
-        # x = x.view(-1, )
-        # x_1 = self.model_1(x.clone())
-        # # the output of inceptionv3 is InceptionOutputs class, a tuple with .logits and .auxlogits,
-        # # taking the logits tensor 
-        # x_2 = self.model_2(x)[0]
-        # # adding the outputs of the 2 models 
-        # x = x_1 + x_2
-        # # return x with output of the new linear layer (6 classes)
-        # x = self.fc(x)
+        
         x_1 = self.model_1(x)
         x_2= self.model_2(x)
         x = x_1+ x_2
-        # x = self.modelc(x)
+        
         x1 = x[:, :64]  # input for the net to calculate the state value
         x2 = x[:, 64:]  # relative advantage of actions in the state
         state_value = self.state_fc(x1).reshape(-1, 1)
@@ -257,10 +228,7 @@ class ensemblemodel(nn.Module):
             advantage_values - advantage_values.mean(dim=1).reshape(-1, 1)
         )
         return x
-# model = convexnetmodel(9)
-# #model = torchvision.models.alexnet(weights =  torchvision.models.AlexNet_Weights.DEFAULT)
 
-# summary(model, input_size=(64,1,240,320))
 
 class DQNAgent:
     def __init__(
