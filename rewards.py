@@ -15,8 +15,13 @@ def dist_reward(game, reward_factor, x_end, y_end, z_end):
     return -((x_end- x_player)**2+(y_end- y_player)**2+(z_end- z_player)**2)*reward_factor
 
 def ammo_reward(game, reward_factor, prev_ammo):
-    # print("ammo:", -(prev_ammo-game.get_game_variable(vzd.GameVariable.AMMO1))*reward_factor)
-    return -(prev_ammo-game.get_game_variable(vzd.GameVariable.AMMO1))*reward_factor
+    # print("ammo:", -(prev_ammo-game.get_game_variable(vzd.GameVariable.AMMO2))*reward_factor)
+    d_ammo = prev_ammo-game.get_game_variable(vzd.GameVariable.AMMO2)
+    if d_ammo <0:
+        return -1* reward_factor
+    else:
+        return 0
+    # return -()*reward_factor
 
 def hit_reward(game, reward_factor, prev_hit):
     # print("hit :", (game.get_game_variable(vzd.GameVariable.HITCOUNT)- prev_hit)*reward_factor)
@@ -35,3 +40,10 @@ def dist_fixed_reward(game, reward_factor, x_end, y_end, z_end, x_prev, y_prev, 
     else:
         return -1.5*reward_factor
     # print("dist:", -math.sqrt((x_end- x_player)**2+(y_end- y_player)**2+(z_end- z_player)**2)*reward_factor)
+
+def health_reward(game, reward_factor, prev_health):
+    new_health = game.get_game_variable(vzd.GameVariable.HEALTH)
+    if new_health<prev_health:
+        return -1*reward_factor
+    else:
+        return 0
