@@ -17,7 +17,7 @@ from tqdm import tqdm, trange
 import skimage
 # from AI_DOOM.rewards import hit_reward
 
-from rewards import dist_reward, kill_reward, hit_reward, ammo_reward, dist_fixed_reward
+from rewards import dist_reward, kill_reward, hit_reward, ammo_reward, dist_fixed_reward, health_reward
 
 # Uses GPU if available
 if torch.cuda.is_available():
@@ -26,69 +26,10 @@ if torch.cuda.is_available():
 else:
     DEVICE = torch.device("cpu")
 
-class Actor_np(nn.Module):
-    """
-    This is Duel DQN architecture.
-    see https://arxiv.org/abs/1511.06581 for more information.
-    """
-
-    def __init__(self, available_actions_count):
-        super().__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=3, stride=2, bias=False),
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-        )
-
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(8, 8, kernel_size=3, stride=2, bias=False),
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-        )
-
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(8, 8, kernel_size=3, stride=1, bias=False),
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-        )
-
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(8, 16, kernel_size=3, stride=1, bias=False),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-        )
-
-        # self.state_fc = nn.Sequential(nn.Linear(96, 64), nn.ReLU(), nn.Linear(64, 1))
-
-        # self.advantage_fc = nn.Sequential(
-        #     nn.Linear(96, 64), nn.ReLU(), nn.Linear(64, available_actions_count)
-        # )
-        self.classifier = nn.Sequential(
-            nn.Linear(192,64),
-            nn.ReLU(),
-            nn.Linear(64, available_actions_count)
-        )
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
-        x = x.view(-1, 192)
-        x1 = x[:, :96]  # input for the net to calculate the state value
-        x2 = x[:, 96:]  # relative advantage of actions in the state
-        state_value = self.state_fc(x1).reshape(-1, 1)
-        advantage_values = self.advantage_fc(x2)
-        x = state_value + (
-            advantage_values - advantage_values.mean(dim=1).reshape(-1, 1)
-        )
-
-        return x
-
 class Actor(nn.Module):
     def __init__(self, available_actions_count) -> None:
         super().__init__()
-        self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
+        # self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
         self.model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
         for param in self.model.parameters():
             param.requires_grad = False
@@ -109,7 +50,7 @@ class Actor(nn.Module):
                     for param in j.parameters():
                         param.requires_grad = True
         self.model = nn.Sequential(
-            self.initial_layer,
+            # self.initial_layer,
             self.model,
             nn.ReLU(),
             nn.Linear(in_features=1000, out_features=512),
@@ -128,7 +69,7 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
+        # self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
         self.model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
         for param in self.model.parameters():
             param.requires_grad = False
@@ -149,7 +90,7 @@ class Critic(nn.Module):
                     for param in j.parameters():
                         param.requires_grad = True
         self.model = nn.Sequential(
-            self.initial_layer,
+            # self.initial_layer,
             self.model,
             nn.ReLU(),
             nn.Linear(in_features=1000, out_features=512),
@@ -173,6 +114,27 @@ def preprocess(img, resolution):
     # assert False
     img = np.expand_dims(img, axis=0)
     return img
+
+def stack_frames(stacked_frames, state, is_new_episode, maxlen = 3, resize = (64, 96)):
+    
+    # Preprocess frame
+    frame = preprocess(state, resize)
+    frame = torch.tensor(frame)
+    if is_new_episode:
+        # Clear our stacked_frames
+        stacked_frames = deque([frame[None] for i in range(maxlen)], maxlen=maxlen) 
+        # Stack the frames
+        stacked_state = torch.cat(tuple(stacked_frames), dim = 1)
+        
+    else:
+        # Append frame to deque, automatically removes the oldest frame
+        stacked_frames.append(frame[None]) 
+        # Build the stacked state (first dimension specifies different frames)
+        stacked_state = torch.cat(tuple(stacked_frames), dim = 1)
+        # print(stacked_state)
+        # print(stacked_state.shape)
+        # assert False
+    return stacked_state, stacked_frames
 
 def unison_shuffled_copies(a, b, c, d):
     assert len(a) == len(b)
@@ -221,11 +183,13 @@ class Actor_Critic_Agent():
         self.cov_mat = torch.diag(self.cov_var)
     def learn(self, total_time_steps):
         curr_t = 0
+        epoch = 0
         while curr_t < total_time_steps:
             self.actor.eval()
             self.critic.eval()
             full_batch_obs, full_batch_acts, full_batch_log_probs, full_batch_rtgs, full_batch_lens = self.rollout()
             # Calculate how many timesteps we collected this batch   
+            epoch  +=1
             curr_t += np.sum(full_batch_lens)
             for i in range(self.num_minibatches):
                 batch_obs, batch_acts, batch_log_probs, batch_rtgs = unison_sample(full_batch_obs, full_batch_acts, full_batch_log_probs, full_batch_rtgs, self.mini_batch_size)
@@ -274,6 +238,8 @@ class Actor_Critic_Agent():
                     self.epsilon *= self.epsilon_decay
                 else:
                     self.epsilon = self.epsilon_min
+            if epoch % 50 == 1:
+                self.save_model(curr_t)
 
         pass
     
@@ -295,27 +261,36 @@ class Actor_Critic_Agent():
             self.game.new_episode()
             done = False
             total_rew = 0
+            new = True
+            stacked_frames = deque([torch.zeros(self.resolution, dtype=torch.int) for i in range(self.stack_size)], maxlen = self.stack_size)
             for ep_t in range(self.max_timesteps_per_episode):
                 # Increment timesteps ran this batch so far
                 t += 1
                 pbar.update(1)
                 # Collect observation
-                obs = preprocess(self.game.get_state().screen_buffer, self.resolution)
-                batch_obs.append(obs)
-                action, log_prob = self.get_action(obs)
+                state = self.game.get_state().screen_buffer
+                if new:
+                    state, stacked_frames = stack_frames(stacked_frames, state, True, self.stack_size, self.resolution)
+                    new = False
+                else:
+                    state, stacked_frames = stack_frames(stacked_frames, state, False, self.stack_size, self.resolution)
+                # obs = preprocess(self.game.get_state().screen_buffer, self.resolution)
+                batch_obs.append(state)
+                action, log_prob = self.get_action(state)
                 kill_num = self.game.get_game_variable(vzd.GameVariable.KILLCOUNT)
                 hit_num = self.game.get_game_variable(vzd.GameVariable.HITCOUNT)
-                AMMO_num = self.game.get_game_variable(vzd.GameVariable.AMMO1)
+                AMMO_num = self.game.get_game_variable(vzd.GameVariable.AMMO2)
+                health_num = self.game.get_game_variable(vzd.GameVariable.HEALTH)
                 state = self.game.get_state()
                 x_player = state.game_variables[0]
                 y_player = state.game_variables[1]
                 z_player = state.game_variables[2]
                 reward = self.game.make_action(action, self.frame_repeat)
-                # reward += kill_reward(self.game,10,kill_num) + hit_reward(self.game, 1, hit_num) + ammo_reward(self.game, 1, AMMO_num)
+                reward += kill_reward(self.game,2,kill_num) + ammo_reward(self.game, 1, AMMO_num) + health_reward(self.game, 1, health_num) #+ hit_reward(self.game, 1, hit_num)
                 done = self.game.is_episode_finished()
                 if not done:
                     # print(reward)
-                    reward += dist_fixed_reward(self.game,10,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2, x_player, y_player, z_player)
+                    reward += dist_fixed_reward(self.game,3,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2, x_player, y_player, z_player)
                     
                     # reward += dist_reward(self.game,9e-6,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2)\
                     #     +dist_reward(self.game,5e-6,self.x_ckpt_1, self.y_ckpt_1, self.z_ckpt_1)\
@@ -351,7 +326,8 @@ class Actor_Critic_Agent():
                 "max: %.1f," % train_scores.max(),
             )
         # Reshape data as tensors in the shape specified before returning
-        batch_obs = torch.tensor(batch_obs, dtype=torch.float)
+        # batch_obs = torch.tensor(batch_obs, dtype=torch.float)
+        batch_obs = torch.cat(tuple(batch_obs), dim = 0)
         batch_acts = torch.tensor(batch_actions, dtype=torch.float)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
         # ALG STEP #4
@@ -371,7 +347,7 @@ class Actor_Critic_Agent():
             log_prob = log_prob.sum()
             return action.detach().numpy(), log_prob.detach()
         else:
-            obs = torch.tensor(obs.astype(np.float32)).reshape((1,1,self.resolution[0],self.resolution[1]))
+            # obs = torch.tensor(obs.astype(np.float32)).reshape((1,1,self.resolution[0],self.resolution[1]))
             mean = self.actor(obs.to(DEVICE)).cpu()
             dist = Bernoulli(mean)
             action = dist.sample()
@@ -381,13 +357,13 @@ class Actor_Critic_Agent():
             return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-unfreeze-E1M1-distfixed-v2-ckpt2-ckpt1-ckpt0"
+        self.name = "ACNagent-stacked-unfreeze-E1M1-distfixed-ckpt2-otherrew"
         self.gamma = 0.95
         self.actor_lr = 1e-3
         self.critic_lr = 1e-3
-        self.timesteps_per_batch = 4000 #2000 
-        self.max_timesteps_per_episode = 2000
-        self.frame_repeat = 12
+        self.timesteps_per_batch = 2000 #2000 
+        self.max_timesteps_per_episode = 1000
+        self.frame_repeat = 4 #12
         self.n_updates_per_iteration = 1
         self.clip = 0.2 # As recommended by the paper
         self.test_episodes_per_epoch = 10
@@ -398,15 +374,15 @@ class Actor_Critic_Agent():
         self.epsilon = 1
         self.epsilon_decay = 0.9996
         self.epsilon_min = 0.1
-        self.min_rew = -15
-        self.max_rew = 15
+        self.min_rew = -10
+        self.max_rew = 10
         self.x_ckpt_0 = 1285
         self.y_ckpt_0 = -2875
         self.z_ckpt_0 = 0
         self.x_ckpt_1 = 1500
         self.y_ckpt_1 = -2500
         self.z_ckpt_1 = 0
-        self.x_ckpt_2 = 1800
+        self.x_ckpt_2 = 1900
         self.y_ckpt_2 = -2500
         self.z_ckpt_2 = 0
         self.x_end = 3000
@@ -418,6 +394,7 @@ class Actor_Critic_Agent():
         self.x_bad = 510
         self.y_bad = -3230
         self.z_bad = 0
+        self.stack_size = 3
         pass
     
     def compute_rtgs(self, batch_rews):
@@ -438,7 +415,7 @@ class Actor_Critic_Agent():
     def evaluate(self, batch_obs, batch_acts):
         # Query critic network for a value V for each obs in batch_obs.
         # print(batch_obs.shape)
-        batch_obs = batch_obs.reshape((batch_obs.size(0),1,self.resolution[0],self.resolution[1]))
+        batch_obs = batch_obs.reshape((batch_obs.size(0),3,self.resolution[0],self.resolution[1]))
 
         # obs.unsqueeze(0)
         V = self.critic(batch_obs.to(DEVICE)).squeeze().cpu()

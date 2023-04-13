@@ -1,9 +1,13 @@
 import vizdoom as vzd
 import math
 
-def kill_reward(game, reward_per_kill, prev_KILL):
+def kill_reward(game, reward_factor, prev_KILL):
     # print("Kill:",(game.get_game_variable(vzd.GameVariable.KILLCOUNT)-prev_KILL)*reward_per_kill)
-    return (game.get_game_variable(vzd.GameVariable.KILLCOUNT)-prev_KILL)*reward_per_kill
+    d_kill = prev_KILL-game.get_game_variable(vzd.GameVariable.KILLCOUNT)
+    if d_kill >0:
+        return reward_factor
+    else:
+        return 0
 
 def dist_reward(game, reward_factor, x_end, y_end, z_end):
     state = game.get_state()
@@ -17,7 +21,8 @@ def dist_reward(game, reward_factor, x_end, y_end, z_end):
 def ammo_reward(game, reward_factor, prev_ammo):
     # print("ammo:", -(prev_ammo-game.get_game_variable(vzd.GameVariable.AMMO2))*reward_factor)
     d_ammo = prev_ammo-game.get_game_variable(vzd.GameVariable.AMMO2)
-    if d_ammo <0:
+    # d_ammo = 1-0 =1 >0
+    if d_ammo >0:
         return -1* reward_factor
     else:
         return 0
@@ -25,7 +30,11 @@ def ammo_reward(game, reward_factor, prev_ammo):
 
 def hit_reward(game, reward_factor, prev_hit):
     # print("hit :", (game.get_game_variable(vzd.GameVariable.HITCOUNT)- prev_hit)*reward_factor)
-    return (game.get_game_variable(vzd.GameVariable.HITCOUNT)- prev_hit)*reward_factor
+    d_hit = prev_hit-game.get_game_variable(vzd.GameVariable.HITCOUNT)
+    if d_hit >0:
+        return reward_factor
+    else:
+        return 0
 
 def dist_fixed_reward(game, reward_factor, x_end, y_end, z_end, x_prev, y_prev, z_prev):
     state = game.get_state()

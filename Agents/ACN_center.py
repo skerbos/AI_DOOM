@@ -295,6 +295,7 @@ class Actor_Critic_Agent():
                 # print(reward)
                 # reward += kill_reward(self.game,5,kill_num) + hit_reward(self.game, 1, hit_num) + ammo_reward(self.game, 0.9, AMMO_num) + health_reward(self.game, 1, health)
                 reward += ammo_reward(self.game, 0.1, AMMO_num) + health_reward(self.game,0.1,health) #+ kill_reward(self.game, 1, kill_num)
+                # TODO:maybe stop game when ammo = 0 and  deduct the reward?
                 done = self.game.is_episode_finished()
                 total_rew += reward
                 # v_p = (v - v_min)/(v_max - v_min)*(new_max - new_min) + new_min
@@ -359,10 +360,10 @@ class Actor_Critic_Agent():
             return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-unfreeze-defend_center-resnet-stacked-v2"
+        self.name = "ACNagent-r-uf-defend_center-stacked-fr3-ammo_less"
         self.gamma = 0.95
-        self.actor_lr = 1e-3
-        self.critic_lr = 1e-3
+        self.actor_lr = 5e-5 #1e-3
+        self.critic_lr = 5e-5 #1e-3
         self.timesteps_per_batch = 1000 #2000 
         self.max_timesteps_per_episode = 600
         self.frame_repeat = 4
