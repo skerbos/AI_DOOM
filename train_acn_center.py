@@ -98,25 +98,24 @@ if __name__ == "__main__":
     start_time = time()
     game = create_simple_game()
     n = game.get_available_buttons_size()
-    load_model = ".\ckpt_defend_ctr\model-doom-ACNagent-unfreeze-defend_center-resnet-stacked-fr2-epoch601-5e-05-5e-05-701000-(64, 96).pth"
-    # ^ this checkpoint was accidentally trained with eps = 0 retrain with higher eps
-    start_timestep = 701000
+    load_model = ".\ckpt_defend_ctr\model-doom-ACNagent-r-uf-defend_center-stacked-fr3-ammo_less-5e-05-5e-05-1051000-(64, 96).pth"
+    start_timestep = 1051000
     # print(n)
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
     # print(actions[0])
     # input(":")
     # load_savefile = "./ckpt/model-doom-DQN.pth"
     save_model = True
-    skip_learning = False
+    skip_learning = True
     episodes_to_watch = 3
 
     # Initialize our agent with the set parameters
     agent = Actor_Critic_Agent(action_size= n, game = game, load_model=load_model, start_time=start_timestep)
-    agent.epsilon= agent.epsilon_min
+    agent.epsilon= agent.epsilon_min # +0.1
     agent.frame_repeat = 2
     # Run the training for the set number of epochs
     if not skip_learning:
-        max_timesteps = 50000
+        max_timesteps = 300000
         agent.learn(max_timesteps)
         if save_model:
             agent.save_model(max_timesteps)
@@ -126,7 +125,7 @@ if __name__ == "__main__":
         print("Training finished. It's time to watch!")
     agent.critic.eval()
     agent.actor.eval()
-    test(agent)
+    # test(agent)
 
     # Reinitialize the game with window visible
     agent.game.close()
@@ -135,7 +134,7 @@ if __name__ == "__main__":
     agent.game.init()
 
     for i in range(episodes_to_watch):
-        agent.game.new_episode("./episodes/" + str(i) + "_rec.lmp")
+        agent.game.new_episode("./episodes/" + str(i) + "fr2_rec.lmp")
         stacked_frames = deque([torch.zeros(agent.resolution, dtype=torch.int) for i in range(agent.stack_size)], maxlen = agent.stack_size)
         new = True
         # x_player = agent.x_start
@@ -153,7 +152,7 @@ if __name__ == "__main__":
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             agent.game.set_action(best_action_index)
             # print(dist_fixed_reward(agent.game, 10, agent.x_ckpt_1, agent.y_ckpt_1, agent.z_ckpt_1))
-            for _ in range(1):
+            for _ in range(2):
                 # print(dist_fixed_reward(agent.game,10,agent.x_ckpt_2, agent.y_ckpt_2, agent.z_ckpt_2, x_player, y_player, z_player))
                 agent.game.advance_action()
             # state = agent.game.get_state()
@@ -172,7 +171,7 @@ if __name__ == "__main__":
     agent.game.init()
     for i in range(episodes_to_watch):
         episode_frames = []
-        agent.game.replay_episode("./episodes/" + str(i) + "_rec.lmp")
+        agent.game.replay_episode("./episodes/" + str(i) + "fr2_rec.lmp")
         while not agent.game.is_episode_finished():
             s = agent.game.get_state()
             # print(s.screen_buffer.shape)
@@ -184,6 +183,6 @@ if __name__ == "__main__":
 
         print("Saving episode GIF..")
         # images = np.array(episode_frames)
-        gif_file = os.path.join("./gif",agent.name+"_"+str(i+1)+".gif")
+        gif_file = os.path.join("./gif",agent.name+"_fr2_"+str(i+1)+".gif")
         make_gif(episode_frames, gif_file, fps=60)
         print("Done")
