@@ -1,6 +1,9 @@
 import vizdoom as vzd
 import math
 
+def frag_reward(game, reward_factor, prev_frag):
+    return (game.get_game_variable(vzd.GameVariable.FRAGCOUNT)- prev_frag)*reward_factor
+
 def kill_reward(game, reward_factor, prev_KILL):
     # print("Kill:",(game.get_game_variable(vzd.GameVariable.KILLCOUNT)-prev_KILL)*reward_per_kill)
     d_kill = prev_KILL-game.get_game_variable(vzd.GameVariable.KILLCOUNT)
@@ -8,6 +11,12 @@ def kill_reward(game, reward_factor, prev_KILL):
         return reward_factor
     else:
         return 0
+
+def item_reward(game, reward_factor, prev_item):
+    return (game.get_game_variable(vzd.GameVariable.ITEMCOUNT)- prev_item)*reward_factor
+
+def item_reward(game, reward_factor, prev_item):
+    return (game.get_game_variable(vzd.GameVariable.ITEMCOUNT)- prev_item)*reward_factor
 
 def dist_reward(game, reward_factor, x_end, y_end, z_end):
     state = game.get_state()
