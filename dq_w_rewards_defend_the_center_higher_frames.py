@@ -36,7 +36,7 @@ test_episodes_per_epoch = 5
 
 # Other parameters
 frame_repeat = 12
-resolution = (120, 180)
+resolution = (90, 135)
 episodes_to_watch = 20
 exp_name = "dq_w_rewards_defend_the_center_double_resolution"
 model_savefile = 'C:/Users/nicho/Desktop/SUTD Term 6/50.021/Project/AI_DOOM/pth/' + exp_name + ".pth"
@@ -269,9 +269,7 @@ class DuelQNet(nn.Module):
         x = self.pooling(x)
         x = self.conv4(x)
         x = self.pooling2(x)
-        x = self.pooling2(x)
         x = x.view(-1, 288)
-        print(x.shape)
         x1 = x[:, :144]  # input for the net to calculate the state value
         x2 = x[:, 144:]  # relative advantage of actions in the state
         state_value = self.state_fc(x1).reshape(-1, 1)
