@@ -360,7 +360,7 @@ class Actor_Critic_Agent():
             return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-r-uf-defend_center-stacked-fr3-ammo_less"
+        self.name = "ACNagent-r-uf-defend_center-stacked-fr4-ammo_less"
         self.gamma = 0.95
         self.actor_lr = 5e-5 #1e-3
         self.critic_lr = 5e-5 #1e-3
@@ -369,7 +369,7 @@ class Actor_Critic_Agent():
         self.frame_repeat = 4
         self.n_updates_per_iteration = 1
         self.clip = 0.2 # As recommended by the paper
-        self.test_episodes_per_epoch = 10
+        self.test_episodes_per_epoch = 25
         self.ckpt_dir = "./ckpt_defend_ctr/"
         self.resolution = (64,96)
         self.num_minibatches = 12

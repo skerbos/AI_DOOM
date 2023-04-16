@@ -176,11 +176,11 @@ class Actor_Critic_Agent():
         self.critic_optim = optim.Adam(self.critic.parameters(), lr = self.critic_lr)
         self.critic_criterion = nn.MSELoss()
           # Create our variable for the matrix.
-        # Note that I chose 0.5 for stdev arbitrarily.
-        self.cov_var = torch.full(size=(self.action_size,), fill_value=0.5)
+        # # Note that I chose 0.5 for stdev arbitrarily.
+        # self.cov_var = torch.full(size=(self.action_size,), fill_value=0.5)
         
         # Create the covariance matrix
-        self.cov_mat = torch.diag(self.cov_var)
+        # self.cov_mat = torch.diag(self.cov_var)
     def learn(self, total_time_steps):
         curr_t = 0
         epoch = 0
