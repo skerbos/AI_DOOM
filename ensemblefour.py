@@ -45,9 +45,8 @@ load_model = False
 skip_learning = False
 
 # Configuration file path
-config_file_path = os.path.join(vzd.scenarios_path, "simpler_basic.cfg")
-# config_file_path = os.path.join(vzd.scenarios_path, "rocket_basic.cfg")
-# config_file_path = os.path.join(vzd.scenarios_path, "basic.cfg")
+config_file_path = os.path.join(vzd.scenarios_path, "defend_the_center.cfg")
+
 
 # Uses GPU if available
 if torch.cuda.is_available():
