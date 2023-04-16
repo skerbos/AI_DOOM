@@ -9,16 +9,11 @@ import torch
 import vizdoom as vzd
 from tqdm import trange
 
-# from Agents.ACN import Actor_Critic_Agent, preprocess
 from Agents.ACN import Actor_Critic_Agent, preprocess, stack_frames
 from rewards import dist_reward, dist_fixed_reward
 
 # Configuration file path
-config_file_path = os.path.join(vzd.scenarios_path, "Single_player.cfg")
-# config_file_path = os.path.join(vzd.scenarios_path, "simpler_basic.cfg")
-
-# config_file_path = os.path.join(vzd.scenarios_path, "rocket_basic.cfg")
-# config_file_path = os.path.join(vzd.scenarios_path, "basic.cfg")
+config_file_path = os.path.join(vzd.scenarios_path, "Single_player.cfg")\
 
 # Uses GPU if available
 if torch.cuda.is_available():
@@ -80,11 +75,7 @@ if __name__ == "__main__":
     n = game.get_available_buttons_size()
     load_model = ".\ckpt\model-doom-ACNagent-stacked-unfreeze-E1M1-distfixed-ckpt2-0.001-0.001-120000-(64, 96).pth"
     start_timestep = 120000
-    # print(n)
-    actions = [list(a) for a in it.product([0, 1], repeat=n)]
-    # print(actions[0])
-    # input(":")
-    # load_savefile = "./ckpt/model-doom-DQN.pth"
+    actions = [list(a) for a in it.product([0, 1], repeat=n)]   
     save_model = True
     skip_learning = False
     episodes_to_watch = 3
@@ -110,16 +101,12 @@ if __name__ == "__main__":
     # Reinitialize the game with window visible
     agent.game.close()
     agent.game.set_window_visible(True)
-    # agent.game.set_mode(vzd.Mode.ASYNC_PLAYER)
     agent.game.init()
 
     for _ in range(episodes_to_watch):
         agent.game.new_episode()
         stacked_frames = deque([torch.zeros(agent.resolution, dtype=torch.int) for i in range(agent.stack_size)], maxlen = agent.stack_size)
         new = True
-        # x_player = agent.x_start
-        # y_player = agent.y_start
-        # z_player = agent.z_start
         while not agent.game.is_episode_finished():
             state = agent.game.get_state().screen_buffer
             if new:
@@ -131,14 +118,8 @@ if __name__ == "__main__":
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             agent.game.set_action(best_action_index)
-            # print(dist_fixed_reward(agent.game, 10, agent.x_ckpt_1, agent.y_ckpt_1, agent.z_ckpt_1))
             for _ in range(4):
-                # print(dist_fixed_reward(agent.game,10,agent.x_ckpt_2, agent.y_ckpt_2, agent.z_ckpt_2, x_player, y_player, z_player))
                 agent.game.advance_action()
-            # state = agent.game.get_state()
-            # x_player = state.game_variables[0]
-            # y_player = state.game_variables[1]
-            # z_player = state.game_variables[2]
 
         # Sleep between episodes
         sleep(1.0)

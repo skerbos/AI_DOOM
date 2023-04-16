@@ -103,10 +103,6 @@ if __name__ == "__main__":
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
     episodes_to_watch = 3
 
-    # ckpt_name = f'{name}.pth'
-    # load_model = f".\ckpt_defend_ctr\{ckpt_name}"
-    # start_timestep = 701000
-
     # Initialize our agent with the set parameters
     agent = Actor_Critic_Agent(action_size= n, game = game, load_model=load_model)
     agent.epsilon= agent.epsilon_min 
@@ -144,7 +140,6 @@ if __name__ == "__main__":
     agent.game.close()
     agent.game.set_screen_format(vzd.ScreenFormat.CRCGCB)
     agent.game.set_mode(vzd.Mode.PLAYER)
-    # agent.game.set_screen_format(vzd.ScreenFormat.GRAY8)
     agent.game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
     agent.game.init()
     for i in range(episodes_to_watch):
@@ -161,7 +156,7 @@ if __name__ == "__main__":
 
         print("Saving episode GIF..")
         # images = np.array(episode_frames)
-        gif_file = os.path.join("./gif",ckpt_name+str(i+1)+".gif")
+        gif_file = os.path.join("./gif",agent.name+str(i+1)+".gif")
         make_gif(episode_frames, gif_file, fps=60)
         print("Done")
     agent.game.close()

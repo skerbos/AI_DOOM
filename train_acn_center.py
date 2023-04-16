@@ -16,10 +16,6 @@ from rewards import dist_reward, dist_fixed_reward
 
 # Configuration file path
 config_file_path = os.path.join(vzd.scenarios_path, "defend_the_center.cfg")
-# config_file_path = os.path.join(vzd.scenarios_path, "simpler_basic.cfg")
-
-# config_file_path = os.path.join(vzd.scenarios_path, "rocket_basic.cfg")
-# config_file_path = os.path.join(vzd.scenarios_path, "basic.cfg")
 
 # Uses GPU if available
 if torch.cuda.is_available():
@@ -100,11 +96,7 @@ if __name__ == "__main__":
     n = game.get_available_buttons_size()
     load_model = ".\ckpt_defend_ctr\model-doom-ACNagent-r-uf-defend_center-stacked-fr3-ammo_less-5e-05-5e-05-1051000-(64, 96).pth"
     start_timestep = 1051000
-    # print(n)
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
-    # print(actions[0])
-    # input(":")
-    # load_savefile = "./ckpt/model-doom-DQN.pth"
     save_model = True
     skip_learning = True
     episodes_to_watch = 3
@@ -125,21 +117,17 @@ if __name__ == "__main__":
         print("Training finished. It's time to watch!")
     agent.critic.eval()
     agent.actor.eval()
-    # test(agent)
+    test(agent)
 
     # Reinitialize the game with window visible
     agent.game.close()
     agent.game.set_window_visible(True)
-    # agent.game.set_mode(vzd.Mode.ASYNC_PLAYER)
     agent.game.init()
 
     for i in range(episodes_to_watch):
         agent.game.new_episode("./episodes/" + str(i) + "fr2_rec.lmp")
         stacked_frames = deque([torch.zeros(agent.resolution, dtype=torch.int) for i in range(agent.stack_size)], maxlen = agent.stack_size)
         new = True
-        # x_player = agent.x_start
-        # y_player = agent.y_start
-        # z_player = agent.z_start
         while not agent.game.is_episode_finished():
             state = agent.game.get_state().screen_buffer
             if new:
@@ -151,14 +139,9 @@ if __name__ == "__main__":
 
             # Instead of make_action(a, frame_repeat) in order to make the animation smooth
             agent.game.set_action(best_action_index)
-            # print(dist_fixed_reward(agent.game, 10, agent.x_ckpt_1, agent.y_ckpt_1, agent.z_ckpt_1))
             for _ in range(2):
-                # print(dist_fixed_reward(agent.game,10,agent.x_ckpt_2, agent.y_ckpt_2, agent.z_ckpt_2, x_player, y_player, z_player))
                 agent.game.advance_action()
-            # state = agent.game.get_state()
-            # x_player = state.game_variables[0]
-            # y_player = state.game_variables[1]
-            # z_player = state.game_variables[2]
+
         # Sleep between episodes
         sleep(1.0)
         score = agent.game.get_total_reward()
@@ -166,7 +149,6 @@ if __name__ == "__main__":
     agent.game.close()
     agent.game.set_screen_format(vzd.ScreenFormat.CRCGCB)
     agent.game.set_mode(vzd.Mode.PLAYER)
-    # agent.game.set_screen_format(vzd.ScreenFormat.GRAY8)
     agent.game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
     agent.game.init()
     for i in range(episodes_to_watch):
@@ -174,15 +156,12 @@ if __name__ == "__main__":
         agent.game.replay_episode("./episodes/" + str(i) + "fr2_rec.lmp")
         while not agent.game.is_episode_finished():
             s = agent.game.get_state()
-            # print(s.screen_buffer.shape)
-            # assert False
             episode_frames.append(s.screen_buffer.transpose((1,2,0)))
 
             # Use advance_action instead of make_action.
             agent.game.advance_action()
 
         print("Saving episode GIF..")
-        # images = np.array(episode_frames)
         gif_file = os.path.join("./gif",agent.name+"_fr2_"+str(i+1)+".gif")
         make_gif(episode_frames, gif_file, fps=60)
         print("Done")

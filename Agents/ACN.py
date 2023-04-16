@@ -107,11 +107,8 @@ class Critic(nn.Module):
 
 def preprocess(img, resolution):
     """Down samples image to resolution"""
-    # print(img)
     img = skimage.transform.resize(img, resolution)
     img = img.astype(np.float32)
-    # print(img)
-    # assert False
     img = np.expand_dims(img, axis=0)
     return img
 
@@ -131,16 +128,12 @@ def stack_frames(stacked_frames, state, is_new_episode, maxlen = 3, resize = (64
         stacked_frames.append(frame[None]) 
         # Build the stacked state (first dimension specifies different frames)
         stacked_state = torch.cat(tuple(stacked_frames), dim = 1)
-        # print(stacked_state)
-        # print(stacked_state.shape)
-        # assert False
     return stacked_state, stacked_frames
 
 def unison_shuffled_copies(a, b, c, d):
     assert len(a) == len(b)
     assert len(a) == len(c)
     assert len(a) == len(d)
-    # assert len(a) == len(e)
     p = np.random.permutation(len(a))
     return a[p], b[p], c[p], d[p]
 
@@ -160,7 +153,6 @@ class Actor_Critic_Agent():
     def __init__(self, action_size, game, load_model = "", start_time = 0) -> None:
         self.init_hyperparameters()
         self.game = game
-        # self.actions = actions
         self.action_size = action_size
         self.actor = Actor(self.action_size).to(DEVICE)
         self.critic = Critic().to(DEVICE)
@@ -175,12 +167,7 @@ class Actor_Critic_Agent():
         self.actor_optim = optim.Adam(self.actor.parameters(), lr = self.actor_lr)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr = self.critic_lr)
         self.critic_criterion = nn.MSELoss()
-          # Create our variable for the matrix.
-        # # Note that I chose 0.5 for stdev arbitrarily.
-        # self.cov_var = torch.full(size=(self.action_size,), fill_value=0.5)
-        
-        # Create the covariance matrix
-        # self.cov_mat = torch.diag(self.cov_var)
+
     def learn(self, total_time_steps):
         curr_t = 0
         epoch = 0
@@ -210,8 +197,6 @@ class Actor_Critic_Agent():
 
                     # Calculate pi_theta(a_t | s_t)
                     V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
-                    # print(curr_log_probs)
-                    # print(batch_log_probs)
                     # Calculate ratios
                     ratios = torch.exp(curr_log_probs - batch_log_probs)
                     # Calculate surrogate losses
@@ -308,10 +293,8 @@ class Actor_Critic_Agent():
                 batch_actions.append(action)
                 batch_log_probs.append(log_prob)
                 if done:
-                    # print("hello")
                     train_scores.append(total_rew)
                     break
-                # assert False
             # Collect episodic length and rewards
             batch_lens.append(ep_t + 1) # plus 1 because timestep starts at 0
             batch_rewards.append(ep_rews)
@@ -326,7 +309,6 @@ class Actor_Critic_Agent():
                 "max: %.1f," % train_scores.max(),
             )
         # Reshape data as tensors in the shape specified before returning
-        # batch_obs = torch.tensor(batch_obs, dtype=torch.float)
         batch_obs = torch.cat(tuple(batch_obs), dim = 0)
         batch_acts = torch.tensor(batch_actions, dtype=torch.float)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
@@ -339,25 +321,22 @@ class Actor_Critic_Agent():
 
     def get_action(self, obs):
         if np.random.uniform() < self.epsilon:
-            mean = torch.ones((self.action_size))/self.action_size
+            mean = torch.ones((self.action_size))/2 #self.action_size
             dist = Bernoulli(mean)
             action = dist.sample()
-            # action = np.random.choice(self.action_size, p=action)
             log_prob = dist.log_prob(action)
             log_prob = log_prob.sum()
             return action.detach().numpy(), log_prob.detach()
         else:
-            # obs = torch.tensor(obs.astype(np.float32)).reshape((1,1,self.resolution[0],self.resolution[1]))
             mean = self.actor(obs.to(DEVICE)).cpu()
             dist = Bernoulli(mean)
             action = dist.sample()
-            # action = np.random.choice(self.action_size, p=action)
             log_prob = dist.log_prob(action)
             log_prob = log_prob.sum()
             return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-stacked-unfreeze-E1M1-distfixed-ckpt2-otherrew"
+        self.name = "ACNagent-E1M1"
         self.gamma = 0.95
         self.actor_lr = 1e-3
         self.critic_lr = 1e-3
@@ -414,10 +393,8 @@ class Actor_Critic_Agent():
 
     def evaluate(self, batch_obs, batch_acts):
         # Query critic network for a value V for each obs in batch_obs.
-        # print(batch_obs.shape)
         batch_obs = batch_obs.reshape((batch_obs.size(0),3,self.resolution[0],self.resolution[1]))
 
-        # obs.unsqueeze(0)
         V = self.critic(batch_obs.to(DEVICE)).squeeze().cpu()
 
 
@@ -442,22 +419,4 @@ class Actor_Critic_Agent():
         
 if __name__ =="__main__":
     model = Actor(9)
-    # model = torchvision.models.alexnet(weights='DEFAULT') 
-    # model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
     summary(model, input_size=(1,1,240,320))
-    # count = 0
-    # for i in model.children():
-    #     count += 1
-    #     if count >1:
-    #         print("count:", count)
-    #         print(i)
-    #         for param in i.parameters():
-    #             param.requires_grad = True
-    #     nc = 0
-    #     for j in i.children():
-    #         nc +=1
-    #         if nc == 9:
-    #             print("count:", nc)
-    #             print(j)
-    #             for param in j.parameters():
-    #                 param.requires_grad = True

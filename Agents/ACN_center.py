@@ -58,7 +58,6 @@ class Actor(nn.Module):
             nn.Linear(in_features=256, out_features=128),
             nn.ReLU(),
             nn.Linear(128, out_features=available_actions_count),
-            # nn.Softmax(), # maybe sigmoid?
             nn.Sigmoid(),
             )
     def forward(self, x):
@@ -103,11 +102,8 @@ class Critic(nn.Module):
 
 def preprocess(img, resolution):
     """Down samples image to resolution"""
-    # print(img)
     img = skimage.transform.resize(img, resolution)
     img = img.astype(np.float32)
-    # print(img)
-    # assert False
     img = np.expand_dims(img, axis=0)
     return img
 
@@ -127,9 +123,6 @@ def stack_frames(stacked_frames, state, is_new_episode, maxlen = 3, resize = (64
         stacked_frames.append(frame[None]) 
         # Build the stacked state (first dimension specifies different frames)
         stacked_state = torch.cat(tuple(stacked_frames), dim = 1)
-        # print(stacked_state)
-        # print(stacked_state.shape)
-        # assert False
     return stacked_state, stacked_frames
 
 
@@ -138,7 +131,6 @@ def unison_shuffled_copies(a, b, c, d):
     assert len(a) == len(b)
     assert len(a) == len(c)
     assert len(a) == len(d)
-    # assert len(a) == len(e)
     p = np.random.permutation(len(a))
     return a[p], b[p], c[p], d[p]
 
@@ -146,20 +138,11 @@ def unison_sample(a,b,c,d, num_samples):
     assert len(a) == len(b)
     assert len(a) == len(c)
     assert len(a) == len(d)
-    # print(a.shape)
-    # print(b.shape)
-    # print(c.shape)
-    # print(d.shape)
     idx = np.random.choice(np.arange(len(a)), num_samples, replace=False)
     a_sample = a[idx]
     b_sample = b[idx]
     c_sample = c[idx]
     d_sample = d[idx]
-    # print(a_sample.shape)
-    # print(b_sample.shape)
-    # print(c_sample.shape)
-    # print(d_sample.shape)
-    # assert False
     return a_sample, b_sample, c_sample, d_sample
 
     
@@ -167,7 +150,6 @@ class Actor_Critic_Agent():
     def __init__(self, action_size, game, load_model = "", start_time = 0) -> None:
         self.init_hyperparameters()
         self.game = game
-        # self.actions = actions
         self.action_size = action_size
         self.actor = Actor(self.action_size).to(DEVICE)
         self.critic = Critic().to(DEVICE)
@@ -182,12 +164,7 @@ class Actor_Critic_Agent():
         self.actor_optim = optim.Adam(self.actor.parameters(), lr = self.actor_lr)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr = self.critic_lr)
         self.critic_criterion = nn.MSELoss()
-          # Create our variable for the matrix.
-        # Note that I chose 0.5 for stdev arbitrarily.
-        self.cov_var = torch.full(size=(self.action_size,), fill_value=0.5)
-        
-        # Create the covariance matrix
-        self.cov_mat = torch.diag(self.cov_var)
+
     def learn(self, total_time_steps):
         curr_t = 0
         epoch = 0
@@ -217,9 +194,7 @@ class Actor_Critic_Agent():
 
                     # Calculate pi_theta(a_t | s_t)
                     V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
-                    # print(curr_log_probs)
-                    # print(batch_log_probs)
-                    # Calculate ratios
+
                     ratios = torch.exp(curr_log_probs - batch_log_probs)
                     # Calculate surrogate losses
                     surr1 = ratios * A_k
@@ -228,8 +203,6 @@ class Actor_Critic_Agent():
                     # Calculate Actor and critic loss
                     actor_loss = (-torch.min(surr1, surr2)).mean()
                     critic_loss = self.critic_criterion(V, batch_rtgs)
-                    # print("Actor_Loss:", actor_loss.item())
-                    # print("Critic_Loss:", critic_loss.item())
 
                     # Calculate gradients and perform backward propagation for actor 
                     # network
@@ -287,29 +260,18 @@ class Actor_Critic_Agent():
                 # hit_num = self.game.get_game_variable(vzd.GameVariable.HITCOUNT)
                 AMMO_num = self.game.get_game_variable(vzd.GameVariable.AMMO2)
                 health = self.game.get_game_variable(vzd.GameVariable.HEALTH)
-                # state = self.game.get_state()
-                # x_player = state.game_variables[0]
-                # y_player = state.game_variables[1]
-                # z_player = state.game_variables[2]
                 reward = self.game.make_action(action, self.frame_repeat)
-                # print(reward)
-                # reward += kill_reward(self.game,5,kill_num) + hit_reward(self.game, 1, hit_num) + ammo_reward(self.game, 0.9, AMMO_num) + health_reward(self.game, 1, health)
                 reward += ammo_reward(self.game, 0.1, AMMO_num) + health_reward(self.game,0.1,health) #+ kill_reward(self.game, 1, kill_num)
-                # TODO:maybe stop game when ammo = 0 and  deduct the reward?
                 done = self.game.is_episode_finished()
                 total_rew += reward
-                # v_p = (v - v_min)/(v_max - v_min)*(new_max - new_min) + new_min
-                # reward = (reward- self.min_rew)/(self.max_rew-self.min_rew)*(1+1)-1
             
                 # Collect reward, action, and log prob
                 ep_rews.append(reward)
                 batch_actions.append(action)
                 batch_log_probs.append(log_prob)
                 if done:
-                    # print("hello")
                     train_scores.append(total_rew)
                     break
-                # assert False
             # Collect episodic length and rewards
             batch_lens.append(ep_t + 1) # plus 1 because timestep starts at 0
             batch_rewards.append(ep_rews)
@@ -324,12 +286,7 @@ class Actor_Critic_Agent():
                 "max: %.1f," % train_scores.max(),
             )
         # Reshape data as tensors in the shape specified before returning
-        # print(batch_obs)
         batch_obs = torch.cat(tuple(batch_obs), dim = 0)
-        # print(batch_obs)
-        # print(batch_obs.shape)
-        # assert False
-
         batch_acts = torch.tensor(batch_actions, dtype=torch.float)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
         # ALG STEP #4
@@ -341,32 +298,28 @@ class Actor_Critic_Agent():
 
     def get_action(self, obs):
         if np.random.uniform() < self.epsilon:
-            mean = torch.ones((self.action_size))/self.action_size
+            mean = torch.ones((self.action_size))/2 #self.action_size
             dist = Bernoulli(mean)
             action = dist.sample()
-            # action = np.random.choice(self.action_size, p=action)
             log_prob = dist.log_prob(action)
             log_prob = log_prob.sum()
             return action.detach().numpy(), log_prob.detach()
         else:
-            # obs = torch.tensor(obs.astype(np.float32)).reshape((1,3,self.resolution[0],self.resolution[1]))
             mean = self.actor(obs.to(DEVICE)).cpu()
             dist = Bernoulli(mean)
             action = dist.sample()
-            # action = np.random.choice(self.action_size, p=action)
             log_prob = dist.log_prob(action)
             log_prob = log_prob.sum()
-            # print(action)
             return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-r-uf-defend_center-stacked-fr4-ammo_less"
+        self.name = "ACNagent-defend_center"
         self.gamma = 0.95
         self.actor_lr = 5e-5 #1e-3
         self.critic_lr = 5e-5 #1e-3
         self.timesteps_per_batch = 1000 #2000 
         self.max_timesteps_per_episode = 600
-        self.frame_repeat = 4
+        self.frame_repeat = 2
         self.n_updates_per_iteration = 1
         self.clip = 0.2 # As recommended by the paper
         self.test_episodes_per_epoch = 25
@@ -430,45 +383,4 @@ class Actor_Critic_Agent():
         
 if __name__ =="__main__":
     model = Actor(9)
-    # model = torchvision.models.resnet.resnet18(weights='DEFAULT') 
-    # # model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
-    # for param in model.parameters():
-    #         param.requires_grad = False
-    # count = 0
-    # for i in model.children():
-    #     count += 1
-    #     if count == 8:
-    #         nc = 0
-    #         for j in i.children():
-    #             nc +=1
-    #             if nc == 2:
-    #                 for param in j.parameters():
-    #                     param.requires_grad = True
-    #     if count >8:
-    #         for param in i.parameters():
-    #             param.requires_grad = True
-        # nc = 0
-        # for j in i.children():
-        #     nc +=1
-        #     # if nc == 9:
-        #     print("count:", nc)
-        #     print(j)
-                # for param in j.parameters():
-                #     param.requires_grad = True
     summary(model, input_size=(1,3,64,96))
-    # count = 0
-    # for i in model.children():
-    #     count += 1
-    #     if count >1:
-    #         print("count:", count)
-    #         print(i)
-    #         for param in i.parameters():
-    #             param.requires_grad = True
-    #     nc = 0
-    #     for j in i.children():
-    #         nc +=1
-    #         if nc == 9:
-    #             print("count:", nc)
-    #             print(j)
-    #             for param in j.parameters():
-    #                 param.requires_grad = True
