@@ -46,8 +46,9 @@ load_model = False
 skip_learning = False
 
 # Configuration file path
-config_file_path = os.path.join(vzd.scenarios_path, "defend_the_center.cfg")
-
+config_file_path = os.path.join(vzd.scenarios_path, "simpler_basic.cfg")
+# config_file_path = os.path.join(vzd.scenarios_path, "rocket_basic.cfg")
+# config_file_path = os.path.join(vzd.scenarios_path, "basic.cfg")
 
 # Uses GPU if available
 if torch.cuda.is_available():
@@ -206,7 +207,10 @@ class resnetmodel(nn.Module):
             advantage_values - advantage_values.mean(dim=1).reshape(-1, 1)
         )
         return x
+#model = resnetmodel(9)
+#model = torchvision.models.alexnet(weights =  torchvision.models.AlexNet_Weights.DEFAULT)
 
+#summary(model, input_size=(64,1,240,320))
 
 class DQNAgent:
     def __init__(
