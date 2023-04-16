@@ -30,25 +30,23 @@ class Actor(nn.Module):
     def __init__(self, available_actions_count) -> None:
         super().__init__()
         # self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
-        self.model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
+        self.model = torchvision.models.resnet.resnet18(weights='DEFAULT') 
+        # model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
         for param in self.model.parameters():
-            param.requires_grad = False
+                param.requires_grad = False
         count = 0
         for i in self.model.children():
             count += 1
-            if count >1:
-                # print("count:", count)
-                # print(i)
+            if count == 8:
+                nc = 0
+                for j in i.children():
+                    nc +=1
+                    if nc == 2:
+                        for param in j.parameters():
+                            param.requires_grad = True
+            if count >8:
                 for param in i.parameters():
                     param.requires_grad = True
-            nc = 0
-            for j in i.children():
-                nc +=1
-                if nc == 9:
-                    # print("count:", nc)
-                    # print(j)
-                    for param in j.parameters():
-                        param.requires_grad = True
         self.model = nn.Sequential(
             # self.initial_layer,
             self.model,
@@ -70,25 +68,23 @@ class Critic(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         # self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
-        self.model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
+        self.model = torchvision.models.resnet.resnet18(weights='DEFAULT') 
+        # model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
         for param in self.model.parameters():
-            param.requires_grad = False
+                param.requires_grad = False
         count = 0
         for i in self.model.children():
             count += 1
-            if count >1:
-                # print("count:", count)
-                # print(i)
+            if count == 8:
+                nc = 0
+                for j in i.children():
+                    nc +=1
+                    if nc == 2:
+                        for param in j.parameters():
+                            param.requires_grad = True
+            if count >8:
                 for param in i.parameters():
                     param.requires_grad = True
-            nc = 0
-            for j in i.children():
-                nc +=1
-                if nc == 9:
-                    # print("count:", nc)
-                    # print(j)
-                    for param in j.parameters():
-                        param.requires_grad = True
         self.model = nn.Sequential(
             # self.initial_layer,
             self.model,
@@ -136,6 +132,8 @@ def stack_frames(stacked_frames, state, is_new_episode, maxlen = 3, resize = (64
         # assert False
     return stacked_state, stacked_frames
 
+
+
 def unison_shuffled_copies(a, b, c, d):
     assert len(a) == len(b)
     assert len(a) == len(c)
@@ -148,11 +146,20 @@ def unison_sample(a,b,c,d, num_samples):
     assert len(a) == len(b)
     assert len(a) == len(c)
     assert len(a) == len(d)
+    # print(a.shape)
+    # print(b.shape)
+    # print(c.shape)
+    # print(d.shape)
     idx = np.random.choice(np.arange(len(a)), num_samples, replace=False)
     a_sample = a[idx]
     b_sample = b[idx]
     c_sample = c[idx]
     d_sample = d[idx]
+    # print(a_sample.shape)
+    # print(b_sample.shape)
+    # print(c_sample.shape)
+    # print(d_sample.shape)
+    # assert False
     return a_sample, b_sample, c_sample, d_sample
 
     
@@ -189,8 +196,8 @@ class Actor_Critic_Agent():
             self.critic.eval()
             full_batch_obs, full_batch_acts, full_batch_log_probs, full_batch_rtgs, full_batch_lens = self.rollout()
             # Calculate how many timesteps we collected this batch   
-            epoch  +=1
             curr_t += np.sum(full_batch_lens)
+            epoch +=1
             for i in range(self.num_minibatches):
                 batch_obs, batch_acts, batch_log_probs, batch_rtgs = unison_sample(full_batch_obs, full_batch_acts, full_batch_log_probs, full_batch_rtgs, self.mini_batch_size)
 
@@ -238,10 +245,8 @@ class Actor_Critic_Agent():
                     self.epsilon *= self.epsilon_decay
                 else:
                     self.epsilon = self.epsilon_min
-            if epoch % 50 == 1:
-                self.save_model(curr_t)
-
-        pass
+            if epoch % 100 == 1:
+                self.save_model(epoch, epoch = True)
     
     def rollout(self):
         # Batch Data
@@ -262,6 +267,7 @@ class Actor_Critic_Agent():
             done = False
             total_rew = 0
             new = True
+            # state = self.game.get_state().screen_buffer
             stacked_frames = deque([torch.zeros(self.resolution, dtype=torch.int) for i in range(self.stack_size)], maxlen = self.stack_size)
             for ep_t in range(self.max_timesteps_per_episode):
                 # Increment timesteps ran this batch so far
@@ -274,34 +280,26 @@ class Actor_Critic_Agent():
                     new = False
                 else:
                     state, stacked_frames = stack_frames(stacked_frames, state, False, self.stack_size, self.resolution)
-                # obs = preprocess(self.game.get_state().screen_buffer, self.resolution)
+                # obs = preprocess(state, self.resolution)
                 batch_obs.append(state)
                 action, log_prob = self.get_action(state)
                 kill_num = self.game.get_game_variable(vzd.GameVariable.KILLCOUNT)
-                hit_num = self.game.get_game_variable(vzd.GameVariable.HITCOUNT)
+                # hit_num = self.game.get_game_variable(vzd.GameVariable.HITCOUNT)
                 AMMO_num = self.game.get_game_variable(vzd.GameVariable.AMMO2)
-                health_num = self.game.get_game_variable(vzd.GameVariable.HEALTH)
-                state = self.game.get_state()
-                x_player = state.game_variables[0]
-                y_player = state.game_variables[1]
-                z_player = state.game_variables[2]
+                health = self.game.get_game_variable(vzd.GameVariable.HEALTH)
+                # state = self.game.get_state()
+                # x_player = state.game_variables[0]
+                # y_player = state.game_variables[1]
+                # z_player = state.game_variables[2]
                 reward = self.game.make_action(action, self.frame_repeat)
-                reward += kill_reward(self.game,2,kill_num) + ammo_reward(self.game, 1, AMMO_num) + health_reward(self.game, 1, health_num) #+ hit_reward(self.game, 1, hit_num)
+                # print(reward)
+                # reward += kill_reward(self.game,5,kill_num) + hit_reward(self.game, 1, hit_num) + ammo_reward(self.game, 0.9, AMMO_num) + health_reward(self.game, 1, health)
+                reward += ammo_reward(self.game, 0.1, AMMO_num) + health_reward(self.game,0.1,health) #+ kill_reward(self.game, 1, kill_num)
+                # TODO:maybe stop game when ammo = 0 and  deduct the reward?
                 done = self.game.is_episode_finished()
-                if not done:
-                    # print(reward)
-                    reward += dist_fixed_reward(self.game,3,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2, x_player, y_player, z_player)
-                    
-                    # reward += dist_reward(self.game,9e-6,self.x_ckpt_2, self.y_ckpt_2, self.z_ckpt_2)\
-                    #     +dist_reward(self.game,5e-6,self.x_ckpt_1, self.y_ckpt_1, self.z_ckpt_1)\
-                    #       + dist_reward(self.game,1e-6,self.x_ckpt_0, self.y_ckpt_0, self.z_ckpt_0)\
-                    #           - dist_reward(self.game,5e-7,self.x_start, self.y_start, self.z_start)\
-                    #                 - dist_reward(self.game,5e-7,self.x_bad, self.y_bad, self.z_bad)
-                    # print(reward)
-                    # assert False
                 total_rew += reward
                 # v_p = (v - v_min)/(v_max - v_min)*(new_max - new_min) + new_min
-                reward = (reward- self.min_rew)/(self.max_rew-self.min_rew)*(1+1)-1
+                # reward = (reward- self.min_rew)/(self.max_rew-self.min_rew)*(1+1)-1
             
                 # Collect reward, action, and log prob
                 ep_rews.append(reward)
@@ -326,8 +324,12 @@ class Actor_Critic_Agent():
                 "max: %.1f," % train_scores.max(),
             )
         # Reshape data as tensors in the shape specified before returning
-        # batch_obs = torch.tensor(batch_obs, dtype=torch.float)
+        # print(batch_obs)
         batch_obs = torch.cat(tuple(batch_obs), dim = 0)
+        # print(batch_obs)
+        # print(batch_obs.shape)
+        # assert False
+
         batch_acts = torch.tensor(batch_actions, dtype=torch.float)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
         # ALG STEP #4
@@ -347,53 +349,36 @@ class Actor_Critic_Agent():
             log_prob = log_prob.sum()
             return action.detach().numpy(), log_prob.detach()
         else:
-            # obs = torch.tensor(obs.astype(np.float32)).reshape((1,1,self.resolution[0],self.resolution[1]))
+            # obs = torch.tensor(obs.astype(np.float32)).reshape((1,3,self.resolution[0],self.resolution[1]))
             mean = self.actor(obs.to(DEVICE)).cpu()
             dist = Bernoulli(mean)
             action = dist.sample()
             # action = np.random.choice(self.action_size, p=action)
             log_prob = dist.log_prob(action)
             log_prob = log_prob.sum()
+            # print(action)
             return action.detach().numpy()[0], log_prob.detach()
     
     def init_hyperparameters(self):
-        self.name = "ACNagent-stacked-unfreeze-E1M1-distfixed-ckpt2-otherrew"
+        self.name = "ACNagent-r-uf-defend_center-stacked-fr3-ammo_less"
         self.gamma = 0.95
-        self.actor_lr = 1e-3
-        self.critic_lr = 1e-3
-        self.timesteps_per_batch = 2000 #2000 
-        self.max_timesteps_per_episode = 1000
-        self.frame_repeat = 4 #12
+        self.actor_lr = 5e-5 #1e-3
+        self.critic_lr = 5e-5 #1e-3
+        self.timesteps_per_batch = 1000 #2000 
+        self.max_timesteps_per_episode = 600
+        self.frame_repeat = 4
         self.n_updates_per_iteration = 1
         self.clip = 0.2 # As recommended by the paper
         self.test_episodes_per_epoch = 10
-        self.ckpt_dir = "./ckpt/"
+        self.ckpt_dir = "./ckpt_defend_ctr/"
         self.resolution = (64,96)
-        self.num_minibatches = 40
+        self.num_minibatches = 12
         self.mini_batch_size = 100
         self.epsilon = 1
         self.epsilon_decay = 0.9996
         self.epsilon_min = 0.1
-        self.min_rew = -10
-        self.max_rew = 10
-        self.x_ckpt_0 = 1285
-        self.y_ckpt_0 = -2875
-        self.z_ckpt_0 = 0
-        self.x_ckpt_1 = 1500
-        self.y_ckpt_1 = -2500
-        self.z_ckpt_1 = 0
-        self.x_ckpt_2 = 1900
-        self.y_ckpt_2 = -2500
-        self.z_ckpt_2 = 0
-        self.x_end = 3000
-        self.y_end = -4865
-        self.z_end = -24
-        self.x_start = 1056
-        self.y_start = -3616
-        self.z_start = 0
-        self.x_bad = 510
-        self.y_bad = -3230
-        self.z_bad = 0
+        self.min_rew = -15
+        self.max_rew = 15
         self.stack_size = 3
         pass
     
@@ -431,9 +416,12 @@ class Actor_Critic_Agent():
         # Return predicted values V and log probs log_probs
         return V, log_probs
 
-    def save_model(self, max_timesteps):
+    def save_model(self, max_timesteps, epoch = False):
         # Specify a path to save to
-        PATH = os.path.join(self.ckpt_dir,f"model-doom-{self.name}-{self.actor_lr}-{self.critic_lr}-{self.start_time+max_timesteps}-{self.resolution}.pth")
+        if not epoch:
+            PATH = os.path.join(self.ckpt_dir,f"model-doom-{self.name}-{self.actor_lr}-{self.critic_lr}-{self.start_time+max_timesteps}-{self.resolution}.pth")
+        else:
+            PATH = os.path.join(self.ckpt_dir,f"model-doom-{self.name}-{self.actor_lr}-{self.critic_lr}-epoch-{max_timesteps}-{self.resolution}.pth")
 
         torch.save({
                     'Actor_state_dict': self.actor.state_dict(),
@@ -442,9 +430,32 @@ class Actor_Critic_Agent():
         
 if __name__ =="__main__":
     model = Actor(9)
-    # model = torchvision.models.alexnet(weights='DEFAULT') 
-    # model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
-    summary(model, input_size=(1,1,240,320))
+    # model = torchvision.models.resnet.resnet18(weights='DEFAULT') 
+    # # model = torchvision.models.efficientnet_b0(weights =  torchvision.models.EfficientNet_B0_Weights.DEFAULT)
+    # for param in model.parameters():
+    #         param.requires_grad = False
+    # count = 0
+    # for i in model.children():
+    #     count += 1
+    #     if count == 8:
+    #         nc = 0
+    #         for j in i.children():
+    #             nc +=1
+    #             if nc == 2:
+    #                 for param in j.parameters():
+    #                     param.requires_grad = True
+    #     if count >8:
+    #         for param in i.parameters():
+    #             param.requires_grad = True
+        # nc = 0
+        # for j in i.children():
+        #     nc +=1
+        #     # if nc == 9:
+        #     print("count:", nc)
+        #     print(j)
+                # for param in j.parameters():
+                #     param.requires_grad = True
+    summary(model, input_size=(1,3,64,96))
     # count = 0
     # for i in model.children():
     #     count += 1
