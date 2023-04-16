@@ -37,10 +37,10 @@ frame_repeat = 12
 resolution = (90, 135)
 episodes_to_watch = 10
 
-model_savefile = "./model-doom.pth"
-save_model = True
-load_model = False
-skip_learning = False
+model_savefile = "C:/Users/nicho/Desktop/SUTD Term 6/50.021/Project/AI_DOOM/pth/0404_DOOM-model-doom.pth"
+save_model = False
+load_model = True
+skip_learning = True
 set_additional_rewards = True
 
 # Configuration file path
@@ -83,7 +83,7 @@ def create_simple_game():
 
 def test(game, agent):
     """Runs a test_episodes_per_epoch episodes and prints the result"""
-    print("\nTesting...")
+    print("/nTesting...")
     test_scores = []
     for test_episode in trange(test_episodes_per_epoch, leave=False):
         game.new_episode()
@@ -165,7 +165,7 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
         hits_taken_count = 0
         target_ls = [(531,-3142,0), (1505, -2500, 0), (2104, -2690, 0), (2905,-2813, 0), (3007, -3962, 0), (3017, -4401, 0), (2915, -4827,0)]
 
-        print("\nEpoch #" + str(epoch + 1))
+        print("/nEpoch #" + str(epoch + 1))
         if epoch == num_epochs - 1:
             game.set_window_visible(False)
 
