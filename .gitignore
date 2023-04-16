@@ -1,4 +1,6 @@
-*.pth
+/ckpt
+/pth
+/plots
 _vizdoom.ini
 *.lmp
 *.gif
