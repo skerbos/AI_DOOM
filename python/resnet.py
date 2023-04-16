@@ -16,6 +16,10 @@ import torch.nn as nn
 import torch.optim as optim
 import vizdoom as vzd
 from tqdm import trange
+from torchvision.models import resnet,ResNet101_Weights
+from torchvision.models import resnet50, ResNet50_Weights
+import torchvision
+from torchinfo import summary
 
 
 # Q-learning settings
@@ -33,7 +37,7 @@ test_episodes_per_epoch = 100
 
 # Other parameters
 frame_repeat = 12
-resolution = (30, 45)
+resolution = (240, 320)
 episodes_to_watch = 10
 
 model_savefile = "./model-doom.pth"
@@ -50,9 +54,10 @@ config_file_path = os.path.join(vzd.scenarios_path, "simpler_basic.cfg")
 if torch.cuda.is_available():
     DEVICE = torch.device("cuda")
     torch.backends.cudnn.benchmark = True
+    print("running on my GPU")
 else:
     DEVICE = torch.device("cpu")
-
+    print("sad life")
 
 def preprocess(img):
     """Down samples image to resolution"""
@@ -70,6 +75,8 @@ def create_simple_game():
     game.set_mode(vzd.Mode.PLAYER)
     game.set_screen_format(vzd.ScreenFormat.GRAY8)
     game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
+    game.set_doom_scenario_path(os.path.join(vzd.scenarios_path, "DOOM.WAD"))
+    game.set_doom_map("E1M1")
     game.init()
     print("Doom initialized.")
 
@@ -125,7 +132,8 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
             if not done:
                 next_state = preprocess(game.get_state().screen_buffer)
             else:
-                next_state = np.zeros((1, 30, 45)).astype(np.float32)
+                next_state = np.zeros((1, resolution[0], resolution[1])).astype(np.float32)
+                # next_state  = 
 
             agent.append_memory(state, action, reward, next_state, done)
 
@@ -154,65 +162,55 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
             print("Saving the network weights to:", model_savefile)
             torch.save(agent.q_net, model_savefile)
         print("Total elapsed time: %.2f minutes" % ((time() - start_time) / 60.0))
-
+    
     game.close()
     return agent, game
 
 
-class DuelQNet(nn.Module):
-    """
-    This is Duel DQN architecture.
-    see https://arxiv.org/abs/1511.06581 for more information.
-    """
 
-    def __init__(self, available_actions_count):
+class resnetmodel(nn.Module):
+    def __init__(self,available_actions_count) -> None:
         super().__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=3, stride=2, bias=False),
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-        )
-
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(8, 8, kernel_size=3, stride=2, bias=False),
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-        )
-
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(8, 8, kernel_size=3, stride=1, bias=False),
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-        )
-
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(8, 16, kernel_size=3, stride=1, bias=False),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-        )
-
-        self.state_fc = nn.Sequential(nn.Linear(96, 64), nn.ReLU(), nn.Linear(64, 1))
-
+        self.state_fc = nn.Sequential(nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 1))
         self.advantage_fc = nn.Sequential(
-            nn.Linear(96, 64), nn.ReLU(), nn.Linear(64, available_actions_count)
+            nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, available_actions_count)
         )
+        #self.state_fc = nn.Sequential(nn.Linear(64, 32), nn.ReLU(), nn.Linear(64, 1))
 
+        self.initial_layer = nn.Sequential(nn.Conv2d(1,3,3,1,1), nn.ReLU())
+        self.model = torchvision.models.resnet50(weights =  torchvision.models.ResNet50_Weights.DEFAULT)
+        for param in self.model.parameters():
+            param.requires_grad = False
+        self.model = nn.Sequential(
+            self.initial_layer,
+            self.model,
+            nn.ReLU(),
+            nn.Linear(in_features=1000, out_features=512),
+            nn.ReLU(),
+            nn.Linear(in_features=512, out_features=256),
+            nn.ReLU(),
+            nn.Linear(in_features=256, out_features=128),
+            nn.ReLU(),
+            # self.state_fc,
+            # self.initial_layer
+            #nn.Linear(128, out_features=1),
+            # nn.Tanh(),
+            )
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
-        x = x.view(-1, 192)
-        x1 = x[:, :96]  # input for the net to calculate the state value
-        x2 = x[:, 96:]  # relative advantage of actions in the state
+        x = self.model(x)
+        # x = x.view(-1, )
+        x1 = x[:, :64]  # input for the net to calculate the state value
+        x2 = x[:, 64:]  # relative advantage of actions in the state
         state_value = self.state_fc(x1).reshape(-1, 1)
         advantage_values = self.advantage_fc(x2)
         x = state_value + (
             advantage_values - advantage_values.mean(dim=1).reshape(-1, 1)
         )
-
         return x
+#model = resnetmodel(9)
+#model = torchvision.models.alexnet(weights =  torchvision.models.AlexNet_Weights.DEFAULT)
 
+#summary(model, input_size=(64,1,240,320))
 
 class DQNAgent:
     def __init__(
@@ -245,8 +243,8 @@ class DQNAgent:
 
         else:
             print("Initializing new model")
-            self.q_net = DuelQNet(action_size).to(DEVICE)
-            self.target_net = DuelQNet(action_size).to(DEVICE)
+            self.q_net = resnetmodel(action_size).to(DEVICE)
+            self.target_net = resnetmodel(action_size).to(DEVICE)
 
         self.opt = optim.SGD(self.q_net.parameters(), lr=self.lr)
 
@@ -322,7 +320,7 @@ if __name__ == "__main__":
         discount_factor=discount_factor,
         load_model=load_model,
     )
-
+    #summary(alexnetmodel, input_data=(1,1,480,640))
     # Run the training for the set number of epochs
     if not skip_learning:
         agent, game = run(
