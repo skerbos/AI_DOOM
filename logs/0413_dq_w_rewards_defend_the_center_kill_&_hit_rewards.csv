@@ -1,0 +1,6 @@
+,frame_repeat,learning_rate,discount_factor,train_epochs,learning_steps_per_epoch,replay_memory_size,batch_size,test_episodes_per_epoch,rewards,train_results,test_results
+0,12,0.00025,0.99,5,2000,10000,64,10,"['KILLCOUNT: 5', 'HITS_TAKEN: -2', 'DEATH_PENALTY: 1']","('Results: mean: 1.4 +/- 1.6,', 'min: -1.0,', 'max: 6.0,')","('Results: mean: 1.7 +/- 1.9,', 'min: -1.0', 'max: 5.0')"
+1,12,0.00025,0.99,5,2000,10000,64,10,"['KILLCOUNT: 5', 'HITS_TAKEN: -2', 'DEATH_PENALTY: 1']","('Results: mean: 2.6 +/- 1.6,', 'min: 0.0,', 'max: 6.0,')","('Results: mean: 3.3 +/- 1.4,', 'min: 1.0', 'max: 5.0')"
+2,12,0.00025,0.99,5,2000,10000,64,10,"['KILLCOUNT: 5', 'HITS_TAKEN: -2', 'DEATH_PENALTY: 1']","('Results: mean: 2.9 +/- 1.5,', 'min: 0.0,', 'max: 7.0,')","('Results: mean: 2.0 +/- 0.9,', 'min: 1.0', 'max: 4.0')"
+3,12,0.00025,0.99,5,2000,10000,64,10,"['KILLCOUNT: 5', 'HITS_TAKEN: -2', 'DEATH_PENALTY: 1']","('Results: mean: 2.7 +/- 1.5,', 'min: 0.0,', 'max: 7.0,')","('Results: mean: 1.6 +/- 1.5,', 'min: 0.0', 'max: 4.0')"
+4,12,0.00025,0.99,5,2000,10000,64,10,"['KILLCOUNT: 5', 'HITS_TAKEN: -2', 'DEATH_PENALTY: 1']","('Results: mean: 2.4 +/- 1.4,', 'min: 0.0,', 'max: 8.0,')","('Results: mean: 3.3 +/- 1.8,', 'min: 1.0', 'max: 7.0')"
